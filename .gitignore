@@ -16,3 +16,5 @@ __pycache__/
 # Ignore data & large files if desired
 data/
 .cache/
+
+checkpoints/
