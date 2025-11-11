@@ -6,6 +6,10 @@ import glob
 import re
 import os
 
+# lat/long range for continental USA
+LAT_MIN, LAT_MAX = 24.5, 49.4
+LONG_MIN, LONG_MAX = -125.0, -66.9
+
 class OpenGuessrDataset(Dataset):
     """Dataset for OpenGuessr Street View images with nested city directories"""
     
@@ -83,11 +87,10 @@ class OpenGuessrDataset(Dataset):
         # Get coordinates
         lat, long = sample['lat'], sample['long']
         
-        # Normalize coordinates to [-1, 1] range for training
         if self.normalize_coords:
-            lat_norm = lat / 90.0   # [-90, 90] -> [-1, 1]
-            lon_norm = long / 180.0  # [-180, 180] -> [-1, 1]
-            coords = torch.tensor([lat_norm, lon_norm], dtype=torch.float32)
+            lat_norm = (lat - LAT_MIN) / (LAT_MAX - LAT_MIN)
+            long_norm = (long - LONG_MIN) / (LONG_MAX - LONG_MIN)
+            coords = torch.tensor([lat_norm, long_norm], dtype=torch.float32)
         else:
             coords = torch.tensor([lat, long], dtype=torch.float32)
         
@@ -110,11 +113,15 @@ class OpenGuessrDataset(Dataset):
         from collections import Counter
         return dict(Counter([s['city'] for s in self.samples]))
 
-# Helper function for denormalization
 def denormalize_coordinates(lat_norm, long_norm):
-    """Convert normalized predictions back to lat/long"""
-    lat = lat_norm * 90.0
-    long = long_norm * 180.0
+    """Convert normalized [0, 1] back to USA lat/long"""
+    lat = lat_norm * (LAT_MAX - LAT_MIN) + LAT_MIN
+    long = long_norm * (LONG_MAX - LONG_MIN) + LONG_MIN
+    
+    # Clipping ensures valid bounds
+    lat = max(LAT_MIN, min(LAT_MAX, lat))
+    long = max(LONG_MIN, min(LONG_MAX, long))
+    
     return lat, long
 
 

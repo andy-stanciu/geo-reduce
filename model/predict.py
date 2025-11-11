@@ -82,7 +82,7 @@ def predict_batch(model, images, device=None):
     # Disable gradient computation for inference
     with torch.no_grad():
         images = images.to(device)
-        predictions = model(images)
+        predictions = model(images, clip_output=True)
     
     return predictions
 

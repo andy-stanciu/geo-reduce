@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import timm
     
@@ -21,7 +22,7 @@ class ViTGeoRegressor(nn.Module):
         self.vit.head = nn.Sequential(
             nn.Linear(in_features, 512),
             nn.SiLU(),
-            nn.Dropout(0.0), # no dropout for now
+            nn.Dropout(0.1),
             nn.Linear(512, 2)
         )
         
@@ -29,5 +30,11 @@ class ViTGeoRegressor(nn.Module):
         for param in self.vit.head.parameters():
             param.requires_grad = True
         
-    def forward(self, x):
-        return self.vit(x)
+    def forward(self, x, clip_output=False):
+        output = self.vit(x)
+        
+        # Clip to [0, 1] at inference time only
+        if clip_output and not self.training:
+            output = torch.clamp(output, 0.0, 1.0)
+        
+        return output
