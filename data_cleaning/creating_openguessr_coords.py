@@ -1,0 +1,122 @@
+import re, json
+
+urls = """
+
+https://www.google.com/maps/place/Albuquerque,+NM/@35.0823726,-106.671984,11z/data=!3m1!4b1!4m6!3m5!1s0x87220addd309837b:0xc0d3f8ceb8d9f6fd!8m2!3d35.0843859!4d-106.650422!16zL20vMGRqZDM?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Atlanta,+GA/@33.7675604,-84.5850184,11z/data=!3m1!4b1!4m6!3m5!1s0x88f5045d6993098d:0x66fede2f990b630b!8m2!3d33.7501275!4d-84.3885209!16zL20vMDEzeXE?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Austin,+TX/@30.2962939,-98.0626284,10z/data=!3m1!4b1!4m6!3m5!1s0x8644b599a0cc032f:0x5d9b464bd469d57a!8m2!3d30.267153!4d-97.7430608!16zL20vMHZ6bQ?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Bakersfield,+CA/@35.3211454,-119.1837987,11z/data=!4m6!3m5!1s0x80ea6bc8b994cb0d:0x59360c0998fe74c8!8m2!3d35.3735112!4d-119.0204707!16zL20vMHFfMHo?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Baltimore,+MD/@39.2848102,-76.7028874,12z/data=!3m1!4b1!4m6!3m5!1s0x89c803aed6f483b7:0x44896a84223e758!8m2!3d39.2905023!4d-76.6104072!16zL20vMDk0anY?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Boston,+MA/@42.3131828,-71.5938826,10z/data=!3m1!4b1!4m6!3m5!1s0x89e3652d0d3d311b:0x787cbf240162e8a0!8m2!3d42.3555076!4d-71.0565364!16zL20vMDFjeF8?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Charlotte,+NC/@35.2054479,-81.1518156,10z/data=!3m1!4b1!4m6!3m5!1s0x88541fc4fc381a81:0x884650e6bf43d164!8m2!3d35.2215548!4d-80.840116!16zL20vMGZzYjg?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Chicago,+IL/@41.833751,-88.0615279,10z/data=!3m1!4b1!4m6!3m5!1s0x880e2c3cd0f4cbed:0xafe0a6ad09c0c000!8m2!3d41.88325!4d-87.6323879!16zL20vMDFfZDQ?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Colorado+Springs,+CO/@38.8759405,-104.9168994,11z/data=!3m1!4b1!4m6!3m5!1s0x8713412ea1e6d22b:0x418eeb92f5e86b13!8m2!3d38.8353142!4d-104.8216009!16zL20vMDF2c2w?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Columbus,+OH/@39.9831679,-83.1556262,11z/data=!3m1!4b1!4m6!3m5!1s0x883889c1b990de71:0xe43266f8cfb1b533!8m2!3d39.9625112!4d-83.0032218!16zL20vMDFzbW0?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Dallas,+TX/@32.8186493,-97.0617526,10z/data=!3m1!4b1!4m6!3m5!1s0x864c19f77b45974b:0xb9ec9ba4f647678f!8m2!3d32.7766642!4d-96.7969879!16zL20vMGYycnE?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Denver,+CO/@39.7631026,-105.478627,10z/data=!3m1!4b1!4m6!3m5!1s0x876b80aa231f17cf:0x118ef4f8278a36d6!8m2!3d39.7392358!4d-104.990251!16zL20vMDJjbDE?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Detroit,+MI/@42.3527307,-83.2639247,11z/data=!3m1!4b1!4m6!3m5!1s0x8824ca0110cb1d75:0x5776864e35b9c4d2!8m2!3d42.3297182!4d-83.0424533!16zL20vMDJkdGc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/El+Paso,+TX/@31.8122375,-106.5823797,11z/data=!3m1!4b1!4m6!3m5!1s0x86e73f8bc5fe3b69:0xe39184e3ab9d0222!8m2!3d31.7618778!4d-106.4850217!16zL20vMDEwMG10?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Fort+Worth,+TX/@32.8000219,-97.6466155,10z/data=!3m1!4b1!4m6!3m5!1s0x864e6e122dc807ad:0xa4af8bf8dd69acbd!8m2!3d32.7554883!4d-97.3307658!16zL20vMGYyczY?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Fresno,+CA/@36.7870103,-119.9572639,11z/data=!3m1!4b1!4m6!3m5!1s0x80945de1549e4e9d:0x7b12406449a3b811!8m2!3d36.7377981!4d-119.7871247!16zL20vMG16eTc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Houston,+TX/@29.8362815,-95.7908487,10z/data=!3m1!4b1!4m6!3m5!1s0x8640b8b4488d8501:0xca0d02def365053b!8m2!3d29.7600771!4d-95.3701108!16zL20vMDNsMm4?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Indianapolis,+IN/@39.7799318,-86.2975602,11z/data=!3m1!4b1!4m6!3m5!1s0x886b50ffa7796a03:0xd68e9df640b9ea7c!8m2!3d39.76909!4d-86.158018!16zL20vMGZ0eHc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Jacksonville,+FL/@30.3451692,-82.0127653,10z/data=!3m1!4b1!4m6!3m5!1s0x88e5b716f1ceafeb:0xc4cd7d3896fcc7e2!8m2!3d30.3297566!4d-81.6591529!16zL20vMGdnaDM?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Kansas+City,+MO/@39.0903034,-94.9051589,10z/data=!3m1!4b1!4m6!3m5!1s0x87c0f75eafe99997:0x558525e66aaa51a2!8m2!3d39.0997265!4d-94.5785667!16zL20vMDRmX2Q?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Las+Vegas,+NV/@36.1251645,-115.3398109,11z/data=!3m1!4b1!4m6!3m5!1s0x80beb782a4f57dd1:0x3accd5e6d5b379a3!8m2!3d36.171563!4d-115.1391009!16zL20vMGN2M3c?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Long+Beach,+CA/@33.7882378,-118.3208794,11z/data=!3m1!4b1!4m6!3m5!1s0x80c2cae84099d759:0xa1003afac42a8faa!8m2!3d33.7700504!4d-118.1937395!16zL20vMG5id2Y?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Los+Angeles,+CA/@34.0206084,-118.7413882,10z/data=!3m1!4b1!4m6!3m5!1s0x80c2c75ddc27da13:0xe22fdf6f254608f4!8m2!3d34.0549076!4d-118.242643!16s%2Fm%2F030qb3t?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Louisville,+KY/@38.1888035,-86.0056537,10z/data=!3m1!4b1!4m6!3m5!1s0x88690b1ab35bd511:0xd4d3b4282071fd32!8m2!3d38.2468618!4d-85.7663724!16zL20vMGZfXzE?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Memphis,+TN/@35.1292458,-90.1079817,11z/data=!3m1!4b1!4m6!3m5!1s0x87d57e1eea439745:0xd193f315601ab6fe!8m2!3d35.1485812!4d-90.0518955!16zL20vMGNfbTM?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Mesa,+AZ/@33.3954623,-111.9024065,11z/data=!3m1!4b1!4m6!3m5!1s0x872ba7c2c0c592c1:0xd10fc215694e771b!8m2!3d33.4151843!4d-111.8314724!16zL20vMHFwbjk?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Miami,+FL/@25.7825454,-80.3077953,12z/data=!3m1!4b1!4m6!3m5!1s0x88d9b0a20ec8c111:0xff96f271ddad4f65!8m2!3d25.7616798!4d-80.1917902!16zL20vMGYydjA?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Milwaukee,+WI/@43.0579301,-88.1322175,11z/data=!3m1!4b1!4m6!3m5!1s0x880502d7578b47e7:0x445f1922b5417b84!8m2!3d43.0410344!4d-87.9096783!16zL20vMGR5bDk?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Minneapolis,+MN/@44.9705339,-93.4174942,12z/data=!3m1!4b1!4m6!3m5!1s0x52b333909377bbbd:0x939fc9842f7aee07!8m2!3d44.977753!4d-93.2650108!16zL20vMGZwendm?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Nashville,+TN/@36.1867427,-87.1148008,10z/data=!3m1!4b1!4m6!3m5!1s0x8864ec3213eb903d:0x7d3fb9d0a1e9daa0!8m2!3d36.1626638!4d-86.7816016!16zL20vMDVqYm4?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/New+York,+NY/@40.6971934,-74.3091559,10z/data=!3m1!4b1!4m6!3m5!1s0x89c24fa5d33f083b:0xc80b8f06e177fe62!8m2!3d40.7127753!4d-74.0059728!16zL20vMDJfMjg2?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Oakland,+NJ/@41.0279118,-74.2775671,13z/data=!3m1!4b1!4m6!3m5!1s0x89c31d97164c5f85:0xc4536810a96bc16!8m2!3d41.0264137!4d-74.2399201!16zL20vMHhrd2Q?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Oklahoma+City,+OK/@35.482905,-97.8088499,10z/data=!3m1!4b1!4m6!3m5!1s0x87ad8a547ef8d281:0x33a21274d14f3a9d!8m2!3d35.4688692!4d-97.519539!16zL20vMGZ2emc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Omaha,+NE/@41.2919995,-96.2344219,11z/data=!3m1!4b1!4m6!3m5!1s0x87938dc8b50cfced:0x46424d4fae37b604!8m2!3d41.2565369!4d-95.9345034!16zL20vMGNocng?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Philadelphia,+PA/@40.0026442,-75.2828247,11z/data=!3m1!4b1!4m6!3m5!1s0x89c6b7d8d4b54beb:0x89f514d88c3e58c1!8m2!3d39.9525839!4d-75.1652215!16zL20vMGRjbGc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Phoenix,+AZ/@33.6044604,-112.4544489,10z/data=!3m1!4b1!4m6!3m5!1s0x872b12ed50a179cb:0x8c69c7f8354a1bac!8m2!3d33.4482948!4d-112.0725488!16zL20vMGQzNXk?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Portland,+OR/@45.5428365,-122.8191945,11z/data=!3m1!4b1!4m6!3m5!1s0x54950b0b7da97427:0x1c36b9e6f6d18591!8m2!3d45.515232!4d-122.6783853!16s%2Fm%2F02frhbc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Raleigh,+NC/@35.8394301,-78.9567231,11z/data=!3m1!4b1!4m6!3m5!1s0x89ac5a2f9f51e0f7:0x6790b6528a11f0ad!8m2!3d35.7795897!4d-78.6381787!16zL20vMGZ2eWc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Sacramento,+CA/@38.5619118,-121.6265495,11z/data=!3m1!4b1!4m6!3m5!1s0x809ac672b28397f9:0x921f6aaa74197fdb!8m2!3d38.5781342!4d-121.4944209!16zL20vMDdiY24?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/San+Antonio,+TX/@38.5619118,-121.6265495,11z/data=!4m2!3m1!1s0x865c58af04d00eaf:0x856e13b10a016bc?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/San+Diego,+CA/@32.824633,-117.4374165,10z/data=!3m1!4b1!4m6!3m5!1s0x80d9530fad921e4b:0xd3a21fdfd15df79!8m2!3d32.715738!4d-117.1610838!16zL20vMDcxdnI?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/San+Francisco,+CA/@37.757807,-122.5200014,12z/data=!3m1!4b1!4m6!3m5!1s0x80859a6d00690021:0x4a501367f076adff!8m2!3d37.7749295!4d-122.4194155!16zL20vMGQ2bHA?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/San+Jose,+CA/@37.757807,-122.5200014,12z/data=!4m6!3m5!1s0x808fcae48af93ff5:0xb99d8c0aca9f717b!8m2!3d37.33874!4d-121.8852525!16zL20vMGYwNHY?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Seattle,+WA/@47.6088285,-122.5046064,11z/data=!3m1!4b1!4m6!3m5!1s0x5490102c93e83355:0x102565466944d59a!8m2!3d47.6061389!4d-122.3328481!16zL20vMGQ5anI?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Tampa,+FL/@27.9922679,-82.6190929,11z/data=!3m1!4b1!4m6!3m5!1s0x88c2b782b3b9d1e1:0xa75f1389af96b463!8m2!3d27.9516896!4d-82.4587527!16zL20vMG4xcmo?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Tucson,+AZ/@32.1558924,-111.0473142,11z/data=!3m1!4b1!4m6!3m5!1s0x86d665410b2ced2b:0x73c32d384d16c715!8m2!3d32.2539787!4d-110.9741769!16zL20vMGZyMHQ?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Tulsa,+OK/@36.1526054,-96.042901,11z/data=!3m1!4b1!4m6!3m5!1s0x87b692b8ddd12e8f:0xe76910c81bd96af7!8m2!3d36.1551375!4d-95.989501!16zL20vMDEza2N2?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Virginia+Beach,+VA/@36.7945055,-76.6366814,10z/data=!3m1!4b1!4m6!3m5!1s0x89bac1e8fc1527a7:0x4161080a32e0173!8m2!3d36.8516437!4d-75.9792194!16zL20vMG1uMHY?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Washington,+DC/@38.8346268,-77.5396217,8.32z/data=!4m6!3m5!1s0x89b7c6de5af6e45b:0xc2524522d4885d2a!8m2!3d38.9071923!4d-77.0368707!16zL20vMHJoNms?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+https://www.google.com/maps/place/Wichita,+KS/@37.6473147,-97.608448,11z/data=!3m1!4b1!4m6!3m5!1s0x87badb6ad27f182d:0x9396d5bf74d33d3e!8m2!3d37.693452!4d-97.3382202!16zL20vMHRicWw?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
+
+
+
+""".strip().splitlines()
+data = {"title": "Major US Cities", "description": "A collection of major U.S. cities for OpenGuessr", "locations": []}
+
+for url in urls:
+    m = re.search(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)", url)
+    if not m: 
+        continue
+    lat, lon = map(float, m.groups())
+    name = re.search(r"/place/([^/]+)/@", url)
+    name = name.group(1).replace("+", " ") if name else "Unknown"
+    data["locations"].append({"lat": lat, "lng": lon, "name": name})
+
+with open("us_cities.json", "w") as f:
+    json.dump(data, f, indent=2)
+
+print("us_cities.json saved!")

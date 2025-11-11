@@ -1,0 +1,251 @@
+{
+  "title": "Major US Cities",
+  "description": "A collection of major U.S. cities for OpenGuessr",
+  "locations": [
+    {
+      "lat": 35.0843859,
+      "lng": -106.650422,
+      "name": "Albuquerque, NM"
+    },
+    {
+      "lat": 33.7501275,
+      "lng": -84.3885209,
+      "name": "Atlanta, GA"
+    },
+    {
+      "lat": 30.267153,
+      "lng": -97.7430608,
+      "name": "Austin, TX"
+    },
+    {
+      "lat": 35.3735112,
+      "lng": -119.0204707,
+      "name": "Bakersfield, CA"
+    },
+    {
+      "lat": 39.2905023,
+      "lng": -76.6104072,
+      "name": "Baltimore, MD"
+    },
+    {
+      "lat": 42.3555076,
+      "lng": -71.0565364,
+      "name": "Boston, MA"
+    },
+    {
+      "lat": 35.2215548,
+      "lng": -80.840116,
+      "name": "Charlotte, NC"
+    },
+    {
+      "lat": 41.88325,
+      "lng": -87.6323879,
+      "name": "Chicago, IL"
+    },
+    {
+      "lat": 38.8353142,
+      "lng": -104.8216009,
+      "name": "Colorado Springs, CO"
+    },
+    {
+      "lat": 39.9625112,
+      "lng": -83.0032218,
+      "name": "Columbus, OH"
+    },
+    {
+      "lat": 32.7766642,
+      "lng": -96.7969879,
+      "name": "Dallas, TX"
+    },
+    {
+      "lat": 39.7392358,
+      "lng": -104.990251,
+      "name": "Denver, CO"
+    },
+    {
+      "lat": 42.3297182,
+      "lng": -83.0424533,
+      "name": "Detroit, MI"
+    },
+    {
+      "lat": 31.7618778,
+      "lng": -106.4850217,
+      "name": "El Paso, TX"
+    },
+    {
+      "lat": 32.7554883,
+      "lng": -97.3307658,
+      "name": "Fort Worth, TX"
+    },
+    {
+      "lat": 36.7377981,
+      "lng": -119.7871247,
+      "name": "Fresno, CA"
+    },
+    {
+      "lat": 29.7600771,
+      "lng": -95.3701108,
+      "name": "Houston, TX"
+    },
+    {
+      "lat": 39.76909,
+      "lng": -86.158018,
+      "name": "Indianapolis, IN"
+    },
+    {
+      "lat": 30.3297566,
+      "lng": -81.6591529,
+      "name": "Jacksonville, FL"
+    },
+    {
+      "lat": 39.0997265,
+      "lng": -94.5785667,
+      "name": "Kansas City, MO"
+    },
+    {
+      "lat": 36.171563,
+      "lng": -115.1391009,
+      "name": "Las Vegas, NV"
+    },
+    {
+      "lat": 33.7700504,
+      "lng": -118.1937395,
+      "name": "Long Beach, CA"
+    },
+    {
+      "lat": 34.0549076,
+      "lng": -118.242643,
+      "name": "Los Angeles, CA"
+    },
+    {
+      "lat": 38.2468618,
+      "lng": -85.7663724,
+      "name": "Louisville, KY"
+    },
+    {
+      "lat": 35.1485812,
+      "lng": -90.0518955,
+      "name": "Memphis, TN"
+    },
+    {
+      "lat": 33.4151843,
+      "lng": -111.8314724,
+      "name": "Mesa, AZ"
+    },
+    {
+      "lat": 25.7616798,
+      "lng": -80.1917902,
+      "name": "Miami, FL"
+    },
+    {
+      "lat": 43.0410344,
+      "lng": -87.9096783,
+      "name": "Milwaukee, WI"
+    },
+    {
+      "lat": 44.977753,
+      "lng": -93.2650108,
+      "name": "Minneapolis, MN"
+    },
+    {
+      "lat": 36.1626638,
+      "lng": -86.7816016,
+      "name": "Nashville, TN"
+    },
+    {
+      "lat": 40.7127753,
+      "lng": -74.0059728,
+      "name": "New York, NY"
+    },
+    {
+      "lat": 41.0264137,
+      "lng": -74.2399201,
+      "name": "Oakland, NJ"
+    },
+    {
+      "lat": 35.4688692,
+      "lng": -97.519539,
+      "name": "Oklahoma City, OK"
+    },
+    {
+      "lat": 41.2565369,
+      "lng": -95.9345034,
+      "name": "Omaha, NE"
+    },
+    {
+      "lat": 39.9525839,
+      "lng": -75.1652215,
+      "name": "Philadelphia, PA"
+    },
+    {
+      "lat": 33.4482948,
+      "lng": -112.0725488,
+      "name": "Phoenix, AZ"
+    },
+    {
+      "lat": 45.515232,
+      "lng": -122.6783853,
+      "name": "Portland, OR"
+    },
+    {
+      "lat": 35.7795897,
+      "lng": -78.6381787,
+      "name": "Raleigh, NC"
+    },
+    {
+      "lat": 38.5781342,
+      "lng": -121.4944209,
+      "name": "Sacramento, CA"
+    },
+    {
+      "lat": 32.715738,
+      "lng": -117.1610838,
+      "name": "San Diego, CA"
+    },
+    {
+      "lat": 37.7749295,
+      "lng": -122.4194155,
+      "name": "San Francisco, CA"
+    },
+    {
+      "lat": 37.33874,
+      "lng": -121.8852525,
+      "name": "San Jose, CA"
+    },
+    {
+      "lat": 47.6061389,
+      "lng": -122.3328481,
+      "name": "Seattle, WA"
+    },
+    {
+      "lat": 27.9516896,
+      "lng": -82.4587527,
+      "name": "Tampa, FL"
+    },
+    {
+      "lat": 32.2539787,
+      "lng": -110.9741769,
+      "name": "Tucson, AZ"
+    },
+    {
+      "lat": 36.1551375,
+      "lng": -95.989501,
+      "name": "Tulsa, OK"
+    },
+    {
+      "lat": 36.8516437,
+      "lng": -75.9792194,
+      "name": "Virginia Beach, VA"
+    },
+    {
+      "lat": 38.9071923,
+      "lng": -77.0368707,
+      "name": "Washington, DC"
+    },
+    {
+      "lat": 37.693452,
+      "lng": -97.3382202,
+      "name": "Wichita, KS"
+    }
+  ]
+}
