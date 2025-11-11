@@ -1,3 +1,7 @@
+import re, json
+
+urls = """
+
 https://www.google.com/maps/place/Albuquerque,+NM/@35.0823726,-106.671984,11z/data=!3m1!4b1!4m6!3m5!1s0x87220addd309837b:0xc0d3f8ceb8d9f6fd!8m2!3d35.0843859!4d-106.650422!16zL20vMGRqZDM?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
 
 https://www.google.com/maps/place/Atlanta,+GA/@33.7675604,-84.5850184,11z/data=!3m1!4b1!4m6!3m5!1s0x88f5045d6993098d:0x66fede2f990b630b!8m2!3d33.7501275!4d-84.3885209!16zL20vMDEzeXE?entry=ttu&g_ep=EgoyMDI1MTEwNS4wIKXMDSoASAFQAw%3D%3D
@@ -98,3 +102,21 @@ https://www.google.com/maps/place/Washington,+DC/@38.8346268,-77.5396217,8.32z/d
 
 https://www.google.com/maps/place/Wichita,+KS/@37.6473147,-97.608448,11z/data=!3m1!4b1!4m6!3m5!1s0x87badb6ad27f182d:0x9396d5bf74d33d3e!8m2!3d37.693452!4d-97.3382202!16zL20vMHRicWw?entry=ttu&g_ep=EgoyMDI1MTEwOS4wIKXMDSoASAFQAw%3D%3D
 
+
+
+""".strip().splitlines()
+data = {"title": "Major US Cities", "description": "A collection of major U.S. cities for OpenGuessr", "locations": []}
+
+for url in urls:
+    m = re.search(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)", url)
+    if not m: 
+        continue
+    lat, lon = map(float, m.groups())
+    name = re.search(r"/place/([^/]+)/@", url)
+    name = name.group(1).replace("+", " ") if name else "Unknown"
+    data["locations"].append({"lat": lat, "lng": lon, "name": name})
+
+with open("us_cities.json", "w") as f:
+    json.dump(data, f, indent=2)
+
+print("us_cities.json saved!")
