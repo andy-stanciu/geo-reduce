@@ -1,0 +1,18 @@
+# Ignore virtual environments
+.venv/
+venv/
+env/
+ENV/
+lib64/
+bin/
+include/
+pyvenv.cfg
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore data & large files if desired
+data/
+.cache/
