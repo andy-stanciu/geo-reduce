@@ -11,12 +11,12 @@ from datetime import datetime
 import math
 import matplotlib.pyplot as plt
 
-from dataloader import load_classification_dataset
-from vit import StreetCLIPCityClassifier
+from data.dataloader import load_classification_dataset
+from model.clip import StreetCLIPCityClassifier
 from device import get_device
-from checkpoint import save_checkpoint
+from train.checkpoint import save_checkpoint
 from constants import *
-from city_mapping import *
+from data.city_mapping import *
 
 
 def haversine_distance(lat1, long1, lat2, long2):

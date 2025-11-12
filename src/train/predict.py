@@ -8,10 +8,10 @@ from tqdm import tqdm
 import pandas as pd
 
 from constants import *
-from vit import StreetCLIPCityClassifier
+from model.clip import StreetCLIPCityClassifier
 from device import get_device
-from dataloader import load_classification_dataset
-from city_mapping import IDX_TO_CITY, IDX_TO_COORDS, CITY_NAMES
+from data.dataloader import load_classification_dataset
+from data.city_mapping import IDX_TO_CITY, IDX_TO_COORDS, CITY_NAMES
 import math
 
 

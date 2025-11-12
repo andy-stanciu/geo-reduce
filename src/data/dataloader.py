@@ -11,7 +11,7 @@ import re
 import os
 
 from constants import *
-from city_mapping import *
+from data.city_mapping import *
 
 
 class OpenGuessrClassificationDataset(Dataset):

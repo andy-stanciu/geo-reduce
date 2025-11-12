@@ -1,7 +1,7 @@
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPVisionConfig
 
-from city_mapping import NUM_CITIES
+from data.city_mapping import NUM_CITIES
 from constants import *
 
 
