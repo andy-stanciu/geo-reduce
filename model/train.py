@@ -1,5 +1,5 @@
 """
-train.py - Train StreetCLIP city classifier
+train.py - Train StreetCLIP city classifier with visualization
 """
 import torch
 import torch.nn as nn
@@ -9,6 +9,7 @@ import os
 import json
 from datetime import datetime
 import math
+import matplotlib.pyplot as plt
 
 from dataloader import load_classification_dataset
 from vit import StreetCLIPCityClassifier, ViTCityClassifier
@@ -144,6 +145,74 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs):
     return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
 
+def plot_training_curves(history, save_dir):
+    """
+    Plot training and validation curves for loss, accuracy, and distance.
+    
+    Args:
+        history: Dictionary with training metrics
+        save_dir: Directory to save plots
+    """
+    epochs = range(1, len(history['train_loss']) + 1)
+    
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    
+    # Plot 1: Loss
+    ax1 = axes[0, 0]
+    ax1.plot(epochs, history['train_loss'], 'b-o', label='Train Loss', linewidth=2, markersize=4)
+    ax1.plot(epochs, history['val_loss'], 'r-s', label='Val Loss', linewidth=2, markersize=4)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Cross-Entropy Loss', fontsize=12)
+    ax1.set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Top-1 Accuracy
+    ax2 = axes[0, 1]
+    ax2.plot(epochs, [acc*100 for acc in history['train_top1_acc']], 
+             'b-o', label='Train Top-1 Acc', linewidth=2, markersize=4)
+    ax2.plot(epochs, [acc*100 for acc in history['val_top1_acc']], 
+             'r-s', label='Val Top-1 Acc', linewidth=2, markersize=4)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Top-1 Accuracy (%)', fontsize=12)
+    ax2.set_title('Top-1 Accuracy', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    
+    # Plot 3: Top-5 Accuracy
+    ax3 = axes[1, 0]
+    ax3.plot(epochs, [acc*100 for acc in history['train_top5_acc']], 
+             'b-o', label='Train Top-5 Acc', linewidth=2, markersize=4)
+    ax3.plot(epochs, [acc*100 for acc in history['val_top5_acc']], 
+             'r-s', label='Val Top-5 Acc', linewidth=2, markersize=4)
+    ax3.set_xlabel('Epoch', fontsize=12)
+    ax3.set_ylabel('Top-5 Accuracy (%)', fontsize=12)
+    ax3.set_title('Top-5 Accuracy', fontsize=14, fontweight='bold')
+    ax3.legend(fontsize=11)
+    ax3.grid(True, alpha=0.3)
+    
+    # Plot 4: Distance Error
+    ax4 = axes[1, 1]
+    ax4.plot(epochs, history['train_distance'], 
+             'b-o', label='Train Dist Error', linewidth=2, markersize=4)
+    ax4.plot(epochs, history['val_distance'], 
+             'r-s', label='Val Dist Error', linewidth=2, markersize=4)
+    ax4.set_xlabel('Epoch', fontsize=12)
+    ax4.set_ylabel('Distance Error (km)', fontsize=12)
+    ax4.set_title('Geographic Distance Error', fontsize=14, fontweight='bold')
+    ax4.legend(fontsize=11)
+    ax4.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    plot_path = os.path.join(save_dir, 'training_curves.png')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✓ Training curves saved to {plot_path}")
+
+
 def main(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     model_type = "streetclip" if args.use_streetclip else "vit"
@@ -208,25 +277,34 @@ def main(args):
     
     best_val_acc = 0.0
     best_val_distance = float('inf')
+    
+    # History tracking
     history = {
-        'train_loss': [], 'val_loss': [],
-        'train_top1_acc': [], 'val_top1_acc': [],
-        'train_top5_acc': [], 'val_top5_acc': [],
-        'train_distance': [], 'val_distance': []
+        'train_loss': [], 
+        'val_loss': [],
+        'train_top1_acc': [], 
+        'val_top1_acc': [],
+        'train_top5_acc': [], 
+        'val_top5_acc': [],
+        'train_distance': [], 
+        'val_distance': []
     }
     
     epoch_pbar = tqdm(range(1, args.epochs + 1), desc='Training Progress',
                       position=0, dynamic_ncols=True)
     
     for epoch in epoch_pbar:
+        # Train
         train_loss, train_top1, train_top5, train_dist = train_epoch(
             model, train_loader, criterion, optimizer, device, epoch, args.epochs
         )
         
+        # Validate
         val_loss, val_top1, val_top5, val_dist = validate(
             model, val_loader, criterion, device, epoch, args.epochs
         )
         
+        # Store metrics
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
         history['train_top1_acc'].append(train_top1)
@@ -236,9 +314,11 @@ def main(args):
         history['train_distance'].append(train_dist)
         history['val_distance'].append(val_dist)
         
+        # Update LR
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
         
+        # Update progress bar
         epoch_pbar.set_postfix({
             'train_acc': f'{train_top1*100:.1f}%',
             'val_acc': f'{val_top1*100:.1f}%',
@@ -246,16 +326,19 @@ def main(args):
             'lr': f'{current_lr:.2e}'
         })
         
+        # Print summary
         print(f"\nEpoch {epoch}/{args.epochs}:")
         print(f"  Train: Loss={train_loss:.4f}, Top-1={train_top1*100:.1f}%, Top-5={train_top5*100:.1f}%, Dist={train_dist:.0f}km")
         print(f"  Val:   Loss={val_loss:.4f}, Top-1={val_top1*100:.1f}%, Top-5={val_top5*100:.1f}%, Dist={val_dist:.0f}km")
         print(f"  LR: {current_lr:.2e}\n")
         
+        # Check if best model
         is_best = val_top1 > best_val_acc
         if is_best:
             best_val_acc = val_top1
             best_val_distance = val_dist
         
+        # Save checkpoint
         if epoch % args.save_freq == 0 or is_best:
             save_checkpoint(
                 model=model,
@@ -273,15 +356,38 @@ def main(args):
                 save_dir=save_dir,
                 is_best=is_best
             )
+        
+        # Save history after each epoch (so you don't lose progress)
+        with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
+            json.dump(history, f, indent=4)
     
-    with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
-        json.dump(history, f, indent=4)
+    # Generate final plots
+    print("\nGenerating training curve plots...")
+    plot_training_curves(history, save_dir)
+    
+    # Save final summary
+    summary = {
+        'best_val_top1_acc': best_val_acc,
+        'best_val_distance': best_val_distance,
+        'final_train_loss': history['train_loss'][-1],
+        'final_val_loss': history['val_loss'][-1],
+        'final_train_top1_acc': history['train_top1_acc'][-1],
+        'final_val_top1_acc': history['val_top1_acc'][-1],
+        'total_epochs': args.epochs,
+        'model_type': model_type,
+        'trainable_params': trainable_params,
+        'total_params': total_params
+    }
+    
+    with open(os.path.join(save_dir, 'summary.json'), 'w') as f:
+        json.dump(summary, f, indent=4)
     
     print(f"\n{'='*70}")
     print(f"Training Complete!")
     print(f"{'='*70}")
     print(f"Best Val Top-1 Accuracy: {best_val_acc*100:.1f}%")
     print(f"Best Val Distance Error: {best_val_distance:.0f} km")
+    print(f"Final Train/Val Gap: {(history['train_top1_acc'][-1] - history['val_top1_acc'][-1])*100:.1f}%")
     print(f"Checkpoints saved to: {save_dir}")
     print(f"{'='*70}\n")
 
