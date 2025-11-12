@@ -8,13 +8,10 @@ bin/
 include/
 pyvenv.cfg
 
-# Ignore Python cache
 __pycache__/
 *.pyc
 *.pyo
 
-# Ignore data & large files if desired
-data/
 .cache/
 
 checkpoints/
