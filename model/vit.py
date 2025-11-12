@@ -1,40 +1,38 @@
-import torch
 import torch.nn as nn
 import timm
-    
 
-class ViTGeoRegressor(nn.Module):
-    """ViT adapted for lat/long coordinate regression"""
+from city_mapping import NUM_CITIES
+
+
+class ViTCityClassifier(nn.Module):
+    """ViT for city classification (50 classes)"""
     
-    def __init__(self, model_name='vit_base_patch16_224', pretrained=True, 
-                 freeze_backbone=False):
+    def __init__(self, model_name='vit_base_patch16_224', 
+                 pretrained=True, freeze_backbone=True, dropout=None):
         super().__init__()
+
+        if dropout is None:
+            raise ValueError('Dropout not provided')
         
         self.vit = timm.create_model(model_name, pretrained=pretrained)
         in_features = self.vit.head.in_features
         
-        # Freeze backbone if specified (only train head)
+        # Freeze backbone (highly recommended for classification)
         if freeze_backbone:
             for param in self.vit.parameters():
                 param.requires_grad = False
         
-        # Replace head with regression head
+        # Classification head
         self.vit.head = nn.Sequential(
-            nn.Linear(in_features, 512),
+            nn.Linear(in_features, 256),
             nn.SiLU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, 2)
+            nn.Dropout(dropout),
+            nn.Linear(256, NUM_CITIES)
         )
         
-        # Always ensure head is trainable
+        # Ensure head is trainable
         for param in self.vit.head.parameters():
             param.requires_grad = True
-        
-    def forward(self, x, clip_output=False):
-        output = self.vit(x)
-        
-        # Clip to [0, 1] at inference time only
-        if clip_output and not self.training:
-            output = torch.clamp(output, 0.0, 1.0)
-        
-        return output
+    
+    def forward(self, x):
+        return self.vit(x)  # Returns logits [batch, 50]

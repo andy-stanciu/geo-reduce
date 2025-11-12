@@ -208,6 +208,11 @@
       "name": "San Francisco, CA"
     },
     {
+      "lat": 29.4252,
+      "lng": -98.4946,
+      "name": "San Antonio, CA"
+    },
+    {
       "lat": 37.33874,
       "lng": -121.8852525,
       "name": "San Jose, CA"

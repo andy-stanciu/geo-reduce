@@ -1,18 +1,18 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import argparse
 import os
 import json
 from datetime import datetime
 import math
 
-from dataloader import OpenGuessrDataset, denormalize_coordinates, get_transforms
-from vit import ViTGeoRegressor
+from dataloader import load_classification_dataset
+from vit import ViTCityClassifier
 from device import get_device
 from checkpoint import save_checkpoint
+from constants import *
+from city_mapping import *
 
 
 def haversine_distance(lat1, long1, lat2, long2):
@@ -20,8 +20,6 @@ def haversine_distance(lat1, long1, lat2, long2):
     Calculate great-circle distance between two points on Earth (in km)
     using Haversine formula
     """
-    R = 6371  # Earth's radius in km
-    
     # Convert to radians
     lat1, long1, lat2, long2 = map(math.radians, [lat1, long1, lat2, long2])
     
@@ -31,7 +29,51 @@ def haversine_distance(lat1, long1, lat2, long2):
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlong/2)**2
     c = 2 * math.asin(math.sqrt(a))
     
-    return R * c
+    return EARTH_RADIUS_KM * c
+
+
+def calculate_metrics(outputs, labels, metadata):
+    """
+    Calculate accuracy and geographic distance metrics
+    
+    Args:
+        outputs: Model logits [batch, 50]
+        labels: True city labels [batch]
+        meta Dict with true lat/lon
+    
+    Returns:
+        top1_acc: Top-1 accuracy
+        top5_acc: Top-5 accuracy
+        avg_distance: Average distance error in km
+    """
+    batch_size = outputs.size(0)
+    
+    # Top-1 accuracy
+    _, pred_labels = torch.max(outputs, dim=1)
+    top1_correct = (pred_labels == labels).sum().item()
+    top1_acc = top1_correct / batch_size
+    
+    # Top-5 accuracy
+    _, top5_pred = torch.topk(outputs, k=min(5, NUM_CITIES), dim=1)
+    top5_correct = sum([labels[i] in top5_pred[i] for i in range(batch_size)])
+    top5_acc = top5_correct / batch_size
+    
+    # Geographic distance error
+    total_distance = 0.0
+    for i in range(batch_size):
+        pred_city_idx = pred_labels[i].item()
+        pred_lat, pred_lon = IDX_TO_COORDS[pred_city_idx]
+        
+        true_lat = metadata['true_lat'][i]
+        true_lon = metadata['true_lon'][i]
+        
+        if true_lat is not None and true_lon is not None:
+            distance = haversine_distance(pred_lat, pred_lon, true_lat, true_lon)
+            total_distance += distance
+    
+    avg_distance = total_distance / batch_size
+    
+    return top1_acc, top5_acc, avg_distance
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_epochs):
@@ -39,18 +81,21 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
     model.train()
     running_loss = 0.0
     running_distance = 0.0
+    running_top1_acc = 0.0
+    running_top5_acc = 0.0
+    running_distance = 0.0
     
     pbar = tqdm(dataloader, desc=f'Epoch {epoch}/{total_epochs} [Train]', 
                 leave=False, dynamic_ncols=True)
     
-    for images, coords, metadata in pbar:
+    for images, labels, metadata in pbar:
         images = images.to(device)
-        coords = coords.to(device)
+        labels = labels.to(device)
         
         # Forward pass
         optimizer.zero_grad()
         outputs = model(images)
-        loss = criterion(outputs, coords)
+        loss = criterion(outputs, labels)
         
         # Backward pass
         loss.backward()
@@ -60,186 +105,109 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
         batch_loss = loss.item()
         running_loss += batch_loss * images.size(0)
         
-        # Calculate average distance error in km
         with torch.no_grad():
-            batch_distance = 0.0
-            for i in range(outputs.shape[0]):
-                pred_lat, pred_lon = denormalize_coordinates(
-                    outputs[i, 0].item(), outputs[i, 1].item()
-                )
-                true_lat = metadata['raw_lat'][i].item()
-                true_lon = metadata['raw_long'][i].item()
-                batch_distance += haversine_distance(pred_lat, pred_lon, true_lat, true_lon)
-            batch_distance /= outputs.shape[0]
-            running_distance += batch_distance * images.size(0)
+            top1_acc, top5_acc, avg_dist = calculate_metrics(outputs, labels, metadata)
+            running_top1_acc += top1_acc * images.size(0)
+            running_top5_acc += top5_acc * images.size(0)
+            running_distance += avg_dist * images.size(0)
         
         # Update progress bar
         pbar.set_postfix({
             'loss': f'{batch_loss:.4f}',
-            'dist': f'{batch_distance:.1f}km'
+            'acc': f'{top1_acc*100:.1f}%',
+            'dist': f'{avg_dist:.0f}km'
         })
     
     epoch_loss = running_loss / len(dataloader.dataset)
+    epoch_top1_acc = running_top1_acc / len(dataloader.dataset)
+    epoch_top5_acc = running_top5_acc / len(dataloader.dataset)
     epoch_distance = running_distance / len(dataloader.dataset)
     
-    return epoch_loss, epoch_distance
+    return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
 
 def validate(model, dataloader, criterion, device, epoch, total_epochs):
     """Validate the model"""
     model.eval()
     running_loss = 0.0
+    running_top1_acc = 0.0
+    running_top5_acc = 0.0
     running_distance = 0.0
     
     pbar = tqdm(dataloader, desc=f'Epoch {epoch}/{total_epochs} [Val]  ', 
                 leave=False, dynamic_ncols=True)
     
     with torch.no_grad():
-        for images, coords, metadata in pbar:
+        for images, labels, metadata in pbar:
             images = images.to(device)
-            coords = coords.to(device)
+            labels = labels.to(device)
             
             # Forward pass
             outputs = model(images)
-            loss = criterion(outputs, coords)
+            loss = criterion(outputs, labels)
             
             # Calculate metrics
             batch_loss = loss.item()
             running_loss += batch_loss * images.size(0)
             
-            # Calculate average distance error
-            batch_distance = 0.0
-            for i in range(outputs.shape[0]):
-                pred_lat, pred_lon = denormalize_coordinates(
-                    outputs[i, 0].item(), outputs[i, 1].item()
-                )
-                true_lat = metadata['raw_lat'][i].item()
-                true_lon = metadata['raw_long'][i].item()
-                batch_distance += haversine_distance(pred_lat, pred_lon, true_lat, true_lon)
-            batch_distance /= outputs.shape[0]
-            running_distance += batch_distance * images.size(0)
+            top1_acc, top5_acc, avg_dist = calculate_metrics(outputs, labels, metadata)
+            running_top1_acc += top1_acc * images.size(0)
+            running_top5_acc += top5_acc * images.size(0)
+            running_distance += avg_dist * images.size(0)
             
             pbar.set_postfix({
                 'loss': f'{batch_loss:.4f}',
-                'dist': f'{batch_distance:.1f}km'
+                'acc': f'{top1_acc*100:.1f}%',
+                'dist': f'{avg_dist:.0f}km'
             })
     
     epoch_loss = running_loss / len(dataloader.dataset)
+    epoch_top1_acc = running_top1_acc / len(dataloader.dataset)
+    epoch_top5_acc = running_top5_acc / len(dataloader.dataset)
     epoch_distance = running_distance / len(dataloader.dataset)
     
-    return epoch_loss, epoch_distance
-
-
-def plot_losses(train_losses, val_losses, train_distances, val_distances, save_dir):
-    """Plot and save training curves"""
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
-    epochs = range(1, len(train_losses) + 1)
-    
-    # Plot MSE Loss
-    ax1.plot(epochs, train_losses, 'b-o', label='Train Loss', linewidth=2, markersize=4)
-    ax1.plot(epochs, val_losses, 'r-s', label='Val Loss', linewidth=2, markersize=4)
-    ax1.set_xlabel('Epoch', fontsize=12)
-    ax1.set_ylabel('MSE Loss', fontsize=12)
-    ax1.set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
-    
-    # Plot Distance Error
-    ax2.plot(epochs, train_distances, 'b-o', label='Train Dist Error', linewidth=2, markersize=4)
-    ax2.plot(epochs, val_distances, 'r-s', label='Val Dist Error', linewidth=2, markersize=4)
-    ax2.set_xlabel('Epoch', fontsize=12)
-    ax2.set_ylabel('Distance Error (km)', fontsize=12)
-    ax2.set_title('Prediction Distance Error', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=11)
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'training_curves.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    print(f"✓ Training curves saved to {os.path.join(save_dir, 'training_curves.png')}")
+    return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
 
 def main(args):
-    # Create save directory
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    save_dir = os.path.join(args.save_dir, f'run_{timestamp}')
+    save_dir = os.path.join(args.save_dir, f'classifier_{timestamp}')
     os.makedirs(save_dir, exist_ok=True)
     
-    # Save training config
-    with open(os.path.join(save_dir, 'config.json'), 'w') as f:
-        json.dump(vars(args), f, indent=4)
-
-    # Get device
     device = get_device()
     
-    print(f"{'='*70}")
-    print(f"OpenGuessr ViT Training")
-    print(f"{'='*70}")
-    print(f"Save directory: {save_dir}")
-    print(f"Device: {device}")
-    print(f"Freeze backbone: {args.freeze_backbone}")
-    print(f"{'='*70}\n")
-    
-    # Load full dataset
-    print("Loading dataset...")
-    full_dataset = OpenGuessrDataset(
+    # Load dataset
+    train_loader, val_loader, _ = load_classification_dataset(
         data_dir=args.data_dir,
-        transform=get_transforms(),
-        normalize_coords=True
-    )
-    
-    # Split into train/val
-    train_size = int(args.train_split * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(
-        full_dataset, 
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(args.seed)
-    )
-    
-    print(f"Train samples: {len(train_dataset)}")
-    print(f"Val samples: {len(val_dataset)}\n")
-    
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
+        train_split=args.train_split,
+        val_split=args.val_split,
         batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        # pin_memory=True
-    )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        # pin_memory=True
+        seed=args.seed
     )
     
     # Initialize model
     print(f"Loading model: {args.model_name}")
-    model = ViTGeoRegressor(
+    model = ViTCityClassifier(
         model_name=args.model_name,
         pretrained=True,
-        freeze_backbone=args.freeze_backbone
+        freeze_backbone=True,
+        dropout=args.dropout
     )
     model = model.to(device)
     
-    # Count trainable parameters
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Trainable parameters: {trainable_params:,} / {total_params:,}\n")
     
     # Loss, optimizer, scheduler
-    criterion = nn.MSELoss()
+    criterion = nn.CrossEntropyLoss()
+    
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=args.lr,
         weight_decay=args.weight_decay
     )
+    
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
         T_max=args.epochs,
@@ -249,84 +217,91 @@ def main(args):
     # Training loop
     print(f"Starting training for {args.epochs} epochs...\n")
     
-    train_losses = []
-    val_losses = []
-    train_distances = []
-    val_distances = []
-    best_val_loss = float('inf')
+    best_val_acc = 0.0
+    best_val_distance = float('inf')
     
-    epoch_pbar = tqdm(range(1, args.epochs + 1), desc='Training Progress', 
+    history = {
+        'train_loss': [], 'val_loss': [],
+        'train_top1_acc': [], 'val_top1_acc': [],
+        'train_top5_acc': [], 'val_top5_acc': [],
+        'train_distance': [], 'val_distance': []
+    }
+
+    epoch_pbar = tqdm(range(1, args.epochs + 1), desc='Training Progress',
                       position=0, dynamic_ncols=True)
-    
+
     for epoch in epoch_pbar:
         # Train
-        train_loss, train_dist = train_epoch(
+        train_loss, train_top1, train_top5, train_dist = train_epoch(
             model, train_loader, criterion, optimizer, device, epoch, args.epochs
         )
-        train_losses.append(train_loss)
-        train_distances.append(train_dist)
         
         # Validate
-        val_loss, val_dist = validate(
+        val_loss, val_top1, val_top5, val_dist = validate(
             model, val_loader, criterion, device, epoch, args.epochs
         )
-        val_losses.append(val_loss)
-        val_distances.append(val_dist)
+
+        history['train_loss'].append(train_loss)
+        history['val_loss'].append(val_loss)
+        history['train_top1_acc'].append(train_top1)
+        history['val_top1_acc'].append(val_top1)
+        history['train_top5_acc'].append(train_top5)
+        history['val_top5_acc'].append(val_top5)
+        history['train_distance'].append(train_dist)
+        history['val_distance'].append(val_dist)
         
-        # Update learning rate
+        # Update LR
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
         
-        # Update main progress bar
+        # Update progress bar
         epoch_pbar.set_postfix({
-            'train_loss': f'{train_loss:.4f}',
-            'val_loss': f'{val_loss:.4f}',
-            'val_dist': f'{val_dist:.1f}km',
+            'train_acc': f'{train_top1*100:.1f}%',
+            'val_acc': f'{val_top1*100:.1f}%',
+            'val_dist': f'{val_dist:.0f}km',
             'lr': f'{current_lr:.2e}'
         })
         
-        # Print epoch summary
-        print(f"\nEpoch {epoch}/{args.epochs} Summary:")
-        print(f"  Train Loss: {train_loss:.4f} | Train Dist: {train_dist:.1f} km")
-        print(f"  Val Loss:   {val_loss:.4f} | Val Dist:   {val_dist:.1f} km")
+        # Print summary
+        print(f"\nEpoch {epoch}/{args.epochs}:")
+        print(f"  Train: Loss={train_loss:.4f}, Top-1={train_top1*100:.1f}%, Top-5={train_top5*100:.1f}%, Dist={train_dist:.0f}km")
+        print(f"  Val:   Loss={val_loss:.4f}, Top-1={val_top1*100:.1f}%, Top-5={val_top5*100:.1f}%, Dist={val_dist:.0f}km")
         print(f"  LR: {current_lr:.2e}\n")
         
-        # Save checkpoint
-        is_best = val_loss < best_val_loss
+        # Check if this is the best model (based on top-1 accuracy)
+        is_best = val_top1 > best_val_acc
         if is_best:
-            best_val_loss = val_loss
+            best_val_acc = val_top1
+            best_val_distance = val_dist
         
+        # Save checkpoint every N epochs or if best
         if epoch % args.save_freq == 0 or is_best:
             save_checkpoint(
-                model, optimizer, scheduler, epoch, 
-                train_loss, val_loss, save_dir, is_best
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                epoch=epoch,
+                train_loss=train_loss,
+                val_loss=val_loss,
+                train_top1_acc=train_top1,
+                val_top1_acc=val_top1,
+                train_top5_acc=train_top5,
+                val_top5_acc=val_top5,
+                train_distance=train_dist,
+                val_distance=val_dist,
+                save_dir=save_dir,
+                is_best=is_best
             )
     
-    # Plot and save training curves
-    print("\nGenerating training curves...")
-    plot_losses(train_losses, val_losses, train_distances, val_distances, save_dir)
-    
     # Save final metrics
-    metrics = {
-        'final_train_loss': train_losses[-1],
-        'final_val_loss': val_losses[-1],
-        'best_val_loss': best_val_loss,
-        'final_train_dist': train_distances[-1],
-        'final_val_dist': val_distances[-1],
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-        'train_distances': train_distances,
-        'val_distances': val_distances,
-    }
-    
-    with open(os.path.join(save_dir, 'metrics.json'), 'w') as f:
-        json.dump(metrics, f, indent=4)
+    with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
+        json.dump(history, f, indent=4)
     
     print(f"\n{'='*70}")
     print(f"Training Complete!")
     print(f"{'='*70}")
-    print(f"Best Val Loss: {best_val_loss:.4f}")
-    print(f"Final Val Distance Error: {val_distances[-1]:.1f} km")
+    print(f"Best Val Top-1 Accuracy: {best_val_acc*100:.1f}%")
+    print(f"Best Val Distance Error: {best_val_distance:.0f} km")
     print(f"Checkpoints saved to: {save_dir}")
     print(f"{'='*70}\n")
 
@@ -340,18 +315,16 @@ if __name__ == '__main__':
     parser.add_argument('--save-dir', type=str, default='./checkpoints',
                        help='Directory to save checkpoints')
     parser.add_argument('--train-split', type=float, default=0.8,
-                       help='Train/val split ratio')
+                       help='Train split ratio')
+    parser.add_argument('--val-split', type=float, default=0.1,
+                       help='Val split ratio')
     
     # Model
     parser.add_argument('--model-name', type=str, default='vit_base_patch16_224',
                        help='ViT model name from timm')
-    parser.add_argument('--freeze-backbone', action='store_true',
-                       help='Freeze ViT backbone (only train head)')
-    parser.add_argument('--image-size', type=int, default=224,
-                       help='Input image size')
     
     # Training
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=5,
                        help='Number of training epochs')
     parser.add_argument('--batch-size', type=int, default=32,
                        help='Batch size')
@@ -363,10 +336,9 @@ if __name__ == '__main__':
                        help='Weight decay')
     parser.add_argument('--save-freq', type=int, default=5,
                        help='Save checkpoint every N epochs')
+    parser.add_argument('--dropout', type=float, default=0.3)
     
     # System
-    parser.add_argument('--num-workers', type=int, default=1,
-                       help='Number of dataloader workers')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
     
