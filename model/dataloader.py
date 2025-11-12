@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 from PIL import Image
 from torchvision import transforms
+from collections import Counter
 import glob
 import re
 import os
@@ -62,7 +63,6 @@ class OpenGuessrClassificationDataset(Dataset):
         print(f"Loaded {len(self.samples)} images from {len(set(s['city_label'] for s in self.samples))} cities")
     
     def _print_class_distribution(self):
-        from collections import Counter
         city_counts = Counter([s['city_label'] for s in self.samples])
         print(f"\nClass distribution:")
         print(f"  Min images per city: {min(city_counts.values())}")
@@ -92,17 +92,14 @@ class OpenGuessrClassificationDataset(Dataset):
         return image, label, metadata
 
 
-def get_clip_transforms(augment=False, image_size=336):
+def get_clip_transforms(augment=False, image_size=CLIP_IMG_SIZE):
     """
     Get transforms for CLIP/StreetCLIP.
     
     CLIP expects images normalized with specific mean/std.
-    Note: StreetCLIP uses 336x336 images, but we'll use 224 for consistency
     """
-    # CLIP normalization (different from ImageNet!)
-    CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
-    CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
     
+    # optional data augmentation in an effort to reduce overfitting
     if augment:
         return transforms.Compose([
             transforms.RandomResizedCrop(image_size, scale=(0.6, 1.0)),
@@ -131,13 +128,10 @@ def get_clip_transforms(augment=False, image_size=336):
         ])
 
 
-def load_classification_dataset(data_dir, train_split=0.8, val_split=0.1,
-                                batch_size=32, seed=42, use_clip=True):
+def load_classification_dataset(data_dir, train_split=TRAIN_SPLIT, val_split=VAL_SPLIT,
+                                batch_size=BATCH_SIZE, seed=SEED):
     """
     Load dataset with appropriate transforms.
-    
-    Args:
-        use_clip: If True, use CLIP transforms; if False, use ImageNet transforms
     """
     full_dataset = OpenGuessrClassificationDataset(
         data_dir=data_dir,
@@ -154,18 +148,9 @@ def load_classification_dataset(data_dir, train_split=0.8, val_split=0.1,
         generator=torch.Generator().manual_seed(seed)
     )
     
-    # Apply transforms based on model type
-    if use_clip:
-        train_dataset.dataset.transform = get_clip_transforms(augment=True)
-        val_dataset.dataset.transform = get_clip_transforms(augment=False)
-        test_dataset.dataset.transform = get_clip_transforms(augment=False)
-        print("Using CLIP transforms")
-    else:
-        # Old ImageNet transforms
-        train_dataset.dataset.transform = get_transforms(augment=True)
-        val_dataset.dataset.transform = get_transforms(augment=False)
-        test_dataset.dataset.transform = get_transforms(augment=False)
-        print("Using ImageNet transforms")
+    train_dataset.dataset.transform = get_clip_transforms(augment=False)
+    val_dataset.dataset.transform = get_clip_transforms(augment=False)
+    test_dataset.dataset.transform = get_clip_transforms(augment=False)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -177,38 +162,3 @@ def load_classification_dataset(data_dir, train_split=0.8, val_split=0.1,
     print(f"  Test:  {len(test_dataset)} images\n")
     
     return train_loader, val_loader, test_loader
-
-
-# Keep old function for backward compatibility
-def get_transforms(augment=False, image_size=224):
-    """ImageNet transforms (for non-CLIP models)"""
-    IMAGENET_MEAN = [0.485, 0.456, 0.406]
-    IMAGENET_STD = [0.229, 0.224, 0.225]
-    
-    if augment:
-        return transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(0.6, 1.0)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(20),
-            transforms.ColorJitter(brightness=0.4, contrast=0.4, 
-                                 saturation=0.4, hue=0.15),
-            transforms.RandomGrayscale(p=0.1),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.2, scale=(0.02, 0.15))
-        ])
-    else:
-        return transforms.Compose([
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-        ])
-
-
-def denormalize_coordinates(lat_norm, long_norm):
-    """Convert normalized [0, 1] back to USA lat/long"""
-    lat = lat_norm * (LAT_MAX - LAT_MIN) + LAT_MIN
-    long = long_norm * (LONG_MAX - LONG_MIN) + LONG_MIN
-    lat = max(LAT_MIN, min(LAT_MAX, lat))
-    long = max(LONG_MIN, min(LONG_MAX, long))
-    return lat, long

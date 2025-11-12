@@ -1,4 +1,36 @@
+### TRAINING ###
+
+# config
+TRAIN_SPLIT = 0.8
+VAL_SPLIT = 0.1
+SEED = 42
+
+# model config
+TRAIN_EPOCHS = 16
+
+# hyperparams
+BATCH_SIZE = 16
+DROPOUT = 0.4
+CLASSIFICATION_HEAD_DIM = 256
+LR = 1e-3
+MIN_LR = 1e-6
+ADAMW_WEIGHT_DECAY = 0.01
+
 # lat/long range for continental USA
 LAT_MIN, LAT_MAX = 24.5, 49.4
 LONG_MIN, LONG_MAX = -125.0, -66.9
 EARTH_RADIUS_KM = 6371
+
+### CLIP ###
+
+# image size
+CLIP_IMG_SIZE = 336
+
+# normalization
+CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
+CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
+
+### PATHS ###
+
+DATA_DIR = './data'
+CHECKPOINT_DIR = './checkpoints'

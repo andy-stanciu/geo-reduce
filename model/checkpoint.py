@@ -1,23 +1,5 @@
 import torch
 import os
-from vit import ViTCityClassifier
-
-
-def load_classifier(checkpoint_path, device):
-    """Load trained classifier"""
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    
-    model = ViTCityClassifier()
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    
-    # Print checkpoint info
-    print(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
-    print(f"  Top-1 Accuracy: {checkpoint['val_top1_acc']*100:.1f}%")
-    print(f"  Top-5 Accuracy: {checkpoint['val_top5_acc']*100:.1f}%")
-    print(f"  Distance Error: {checkpoint['val_distance']:.0f} km")
-    
-    return model
 
 
 def save_checkpoint(model, optimizer, scheduler, epoch, 

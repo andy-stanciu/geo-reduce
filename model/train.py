@@ -12,7 +12,7 @@ import math
 import matplotlib.pyplot as plt
 
 from dataloader import load_classification_dataset
-from vit import StreetCLIPCityClassifier, ViTCityClassifier
+from vit import StreetCLIPCityClassifier
 from device import get_device
 from checkpoint import save_checkpoint
 from constants import *
@@ -155,7 +155,7 @@ def plot_training_curves(history, save_dir):
     """
     epochs = range(1, len(history['train_loss']) + 1)
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    _, axes = plt.subplots(2, 2, figsize=(14, 10))
     
     # Plot 1: Loss
     ax1 = axes[0, 0]
@@ -215,7 +215,7 @@ def plot_training_curves(history, save_dir):
 
 def main(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_type = "streetclip" if args.use_streetclip else "vit"
+    model_type = "streetclip"
     save_dir = os.path.join(args.save_dir, f'{model_type}_{timestamp}')
     os.makedirs(save_dir, exist_ok=True)
     
@@ -223,7 +223,7 @@ def main(args):
     
     print(f"{'='*70}")
     print(f"OpenGuessr City Classifier Training")
-    print(f"Model: {'StreetCLIP' if args.use_streetclip else 'ViT-Base'}")
+    print(f"Model: StreetClip")
     print(f"{'='*70}\n")
     
     # Load dataset
@@ -232,24 +232,15 @@ def main(args):
         train_split=args.train_split,
         val_split=args.val_split,
         batch_size=args.batch_size,
-        seed=args.seed,
-        use_clip=args.use_streetclip
+        seed=args.seed
     )
     
     # Initialize model
-    if args.use_streetclip:
-        model = StreetCLIPCityClassifier(
-            model_name="geolocal/StreetCLIP",
-            freeze_backbone=True,
-            dropout=args.dropout
-        )
-    else:
-        model = ViTCityClassifier(
-            model_name='vit_base_patch16_224',
-            pretrained=True,
-            freeze_backbone=True,
-            dropout=args.dropout
-        )
+    model = StreetCLIPCityClassifier(
+        model_name="geolocal/StreetCLIP",
+        freeze_backbone=True,
+        dropout=args.dropout
+    )
     
     model = model.to(device)
     
@@ -396,24 +387,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train city classifier')
     
     # Data
-    parser.add_argument('--data-dir', type=str, default='./data')
-    parser.add_argument('--save-dir', type=str, default='./checkpoints')
-    parser.add_argument('--train-split', type=float, default=0.8)
-    parser.add_argument('--val-split', type=float, default=0.1)
-    
-    # Model
-    parser.add_argument('--use-streetclip', action='store_true',
-                       help='Use StreetCLIP instead of ViT-Base')
+    parser.add_argument('--data-dir', type=str, default=DATA_DIR)
+    parser.add_argument('--save-dir', type=str, default=CHECKPOINT_DIR)
+    parser.add_argument('--train-split', type=float, default=TRAIN_SPLIT)
+    parser.add_argument('--val-split', type=float, default=VAL_SPLIT)
     
     # Training
-    parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--min-lr', type=float, default=1e-6)
-    parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--save-freq', type=int, default=5)
-    parser.add_argument('--dropout', type=float, default=0.4)
-    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--epochs', type=int, default=TRAIN_EPOCHS)
+    parser.add_argument('--batch-size', type=int, default=BATCH_SIZE)
+    parser.add_argument('--lr', type=float, default=LR)
+    parser.add_argument('--min-lr', type=float, default=MIN_LR)
+    parser.add_argument('--weight-decay', type=float, default=ADAMW_WEIGHT_DECAY)
+    parser.add_argument('--dropout', type=float, default=DROPOUT)
+    parser.add_argument('--seed', type=int, default=SEED)
     
     args = parser.parse_args()
     main(args)

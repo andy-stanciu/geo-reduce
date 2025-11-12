@@ -1,10 +1,8 @@
-"""
-vit.py - Model definitions including StreetCLIP classifier
-"""
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPVisionConfig
 
 from city_mapping import NUM_CITIES
+from constants import *
 
 
 class StreetCLIPCityClassifier(nn.Module):
@@ -16,7 +14,7 @@ class StreetCLIPCityClassifier(nn.Module):
     """
     
     def __init__(self, model_name="geolocal/StreetCLIP", 
-                 freeze_backbone=True, dropout=0.4):
+                 freeze_backbone=True, dropout=DROPOUT):
         super().__init__()
         
         print(f"Loading StreetCLIP from: {model_name}")
@@ -43,10 +41,10 @@ class StreetCLIPCityClassifier(nn.Module):
         
         # Classification head - simpler than before due to better features
         self.classifier = nn.Sequential(
-            nn.Linear(self.embed_dim, 256),
+            nn.Linear(self.embed_dim, CLASSIFICATION_HEAD_DIM),
             nn.SiLU(),
             nn.Dropout(dropout),
-            nn.Linear(256, NUM_CITIES)
+            nn.Linear(CLASSIFICATION_HEAD_DIM, NUM_CITIES)
         )
     
     def forward(self, pixel_values):
@@ -67,33 +65,3 @@ class StreetCLIPCityClassifier(nn.Module):
         logits = self.classifier(pooled_output)
         
         return logits
-
-
-# Keep old ViT class for backward compatibility if needed
-class ViTCityClassifier(nn.Module):
-    """Original timm-based ViT classifier"""
-    
-    def __init__(self, model_name='vit_base_patch16_224', 
-                 pretrained=True, freeze_backbone=True, dropout=0.3):
-        import timm
-        super().__init__()
-        
-        self.vit = timm.create_model(model_name, pretrained=pretrained)
-        in_features = self.vit.head.in_features
-        
-        if freeze_backbone:
-            for param in self.vit.parameters():
-                param.requires_grad = False
-        
-        self.vit.head = nn.Sequential(
-            nn.Linear(in_features, 256),
-            nn.SiLU(),
-            nn.Dropout(dropout),
-            nn.Linear(256, NUM_CITIES)
-        )
-        
-        for param in self.vit.head.parameters():
-            param.requires_grad = True
-    
-    def forward(self, x):
-        return self.vit(x)

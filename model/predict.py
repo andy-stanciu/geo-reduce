@@ -1,5 +1,5 @@
 """
-predict.py - Inference with StreetCLIP or ViT classifier
+predict.py - Inference with StreetCLIP
 """
 import torch
 from datetime import datetime
@@ -7,7 +7,8 @@ import os
 from tqdm import tqdm
 import pandas as pd
 
-from vit import StreetCLIPCityClassifier, ViTCityClassifier
+from constants import *
+from vit import StreetCLIPCityClassifier
 from device import get_device
 from dataloader import load_classification_dataset
 from city_mapping import IDX_TO_CITY, IDX_TO_COORDS, CITY_NAMES
@@ -16,16 +17,15 @@ import math
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Calculate great-circle distance in km"""
-    R = 6371.0
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
     dlat = lat2 - lat1
     dlon = lon2 - lon1
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    return R * c
+    return EARTH_RADIUS_KM * c
 
 
-def load_classifier_for_inference(checkpoint_path, use_streetclip=True):
+def load_classifier_for_inference(checkpoint_path):
     """Load trained classifier from checkpoint"""
     device = get_device()
     
@@ -33,21 +33,11 @@ def load_classifier_for_inference(checkpoint_path, use_streetclip=True):
     print(f"Device: {device}")
     
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    
-    # Create appropriate model
-    if use_streetclip:
-        model = StreetCLIPCityClassifier(
-            model_name="geolocal/StreetCLIP",
-            freeze_backbone=True,
-            dropout=0.4
-        )
-    else:
-        model = ViTCityClassifier(
-            model_name='vit_base_patch16_224',
-            pretrained=False,
-            freeze_backbone=True,
-            dropout=0.3
-        )
+    model = StreetCLIPCityClassifier(
+        model_name="geolocal/StreetCLIP",
+        freeze_backbone=True,
+        dropout=0.4
+    )
     
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
@@ -61,7 +51,7 @@ def load_classifier_for_inference(checkpoint_path, use_streetclip=True):
     }
     
     print(f"✓ Model loaded successfully")
-    print(f"  Trained for {checkpoint_info['epoch']} epochs")
+    print(f"  Trained for {checkpoint_info['epoch'] + 1} epochs")
     
     if checkpoint_info['val_top1_acc'] != 'N/A':
         print(f"  Val Top-1 Accuracy: {checkpoint_info['val_top1_acc']*100:.1f}%")
@@ -85,13 +75,12 @@ def predict_batch(model, images, device, top_k=5):
     return top1_pred, topk_pred, topk_probs
 
 
-def predict(checkpoint_path, data_dir='./data', batch_size=32,
-           use_test_set=True, use_streetclip=True):
+def predict(checkpoint_path, data_dir='./data', batch_size=BATCH_SIZE,
+           use_test_set=True):
     """Run inference on dataset"""
     
-    model, info = load_classifier_for_inference(
+    model, _ = load_classifier_for_inference(
         checkpoint_path=checkpoint_path,
-        use_streetclip=use_streetclip
     )
     
     device = next(model.parameters()).device
@@ -99,11 +88,10 @@ def predict(checkpoint_path, data_dir='./data', batch_size=32,
     print("Loading dataset...")
     _, val_loader, test_loader = load_classification_dataset(
         data_dir=data_dir,
-        train_split=0.8,
-        val_split=0.1,
+        train_split=TRAIN_SPLIT,
+        val_split=VAL_SPLIT,
         batch_size=batch_size,
-        seed=42,
-        use_clip=use_streetclip
+        seed=SEED
     )
     
     dataloader = test_loader if use_test_set else val_loader
@@ -174,7 +162,7 @@ def predict(checkpoint_path, data_dir='./data', batch_size=32,
     df = pd.DataFrame(predictions)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     os.makedirs('predictions', exist_ok=True)
-    model_type = "streetclip" if use_streetclip else "vit"
+    model_type = "streetclip"
     output_file = f'predictions/{model_type}_predictions_{timestamp}.csv'
     df.to_csv(output_file, index=False)
     
@@ -208,12 +196,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run inference with city classifier')
     parser.add_argument('--checkpoint', type=str, required=True,
                        help='Path to model checkpoint')
-    parser.add_argument('--data-dir', type=str, default='./data')
-    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--data-dir', type=str, default=DATA_DIR)
+    parser.add_argument('--batch-size', type=int, default=BATCH_SIZE)
     parser.add_argument('--use-val', action='store_true',
                        help='Use validation set instead of test set')
-    parser.add_argument('--use-streetclip', action='store_true',
-                       help='Model is StreetCLIP (not ViT)')
     
     args = parser.parse_args()
     
@@ -221,6 +207,5 @@ if __name__ == '__main__':
         checkpoint_path=args.checkpoint,
         data_dir=args.data_dir,
         batch_size=args.batch_size,
-        use_test_set=not args.use_val,
-        use_streetclip=args.use_streetclip
+        use_test_set=not args.use_val
     )
