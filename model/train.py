@@ -1,3 +1,6 @@
+"""
+train.py - Train StreetCLIP city classifier
+"""
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -8,7 +11,7 @@ from datetime import datetime
 import math
 
 from dataloader import load_classification_dataset
-from vit import ViTCityClassifier
+from vit import StreetCLIPCityClassifier, ViTCityClassifier
 from device import get_device
 from checkpoint import save_checkpoint
 from constants import *
@@ -16,36 +19,17 @@ from city_mapping import *
 
 
 def haversine_distance(lat1, long1, lat2, long2):
-    """
-    Calculate great-circle distance between two points on Earth (in km)
-    using Haversine formula
-    """
-    # Convert to radians
+    """Calculate great-circle distance between two points on Earth (in km)"""
     lat1, long1, lat2, long2 = map(math.radians, [lat1, long1, lat2, long2])
-    
     dlat = lat2 - lat1
     dlong = long2 - long1
-    
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlong/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    
     return EARTH_RADIUS_KM * c
 
 
 def calculate_metrics(outputs, labels, metadata):
-    """
-    Calculate accuracy and geographic distance metrics
-    
-    Args:
-        outputs: Model logits [batch, 50]
-        labels: True city labels [batch]
-        meta Dict with true lat/lon
-    
-    Returns:
-        top1_acc: Top-1 accuracy
-        top5_acc: Top-5 accuracy
-        avg_distance: Average distance error in km
-    """
+    """Calculate accuracy and geographic distance metrics"""
     batch_size = outputs.size(0)
     
     # Top-1 accuracy
@@ -72,7 +56,6 @@ def calculate_metrics(outputs, labels, metadata):
             total_distance += distance
     
     avg_distance = total_distance / batch_size
-    
     return top1_acc, top5_acc, avg_distance
 
 
@@ -80,7 +63,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
     """Train for one epoch"""
     model.train()
     running_loss = 0.0
-    running_distance = 0.0
     running_top1_acc = 0.0
     running_top5_acc = 0.0
     running_distance = 0.0
@@ -92,16 +74,12 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
         images = images.to(device)
         labels = labels.to(device)
         
-        # Forward pass
         optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, labels)
-        
-        # Backward pass
         loss.backward()
         optimizer.step()
         
-        # Calculate metrics
         batch_loss = loss.item()
         running_loss += batch_loss * images.size(0)
         
@@ -111,7 +89,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
             running_top5_acc += top5_acc * images.size(0)
             running_distance += avg_dist * images.size(0)
         
-        # Update progress bar
         pbar.set_postfix({
             'loss': f'{batch_loss:.4f}',
             'acc': f'{top1_acc*100:.1f}%',
@@ -142,11 +119,9 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs):
             images = images.to(device)
             labels = labels.to(device)
             
-            # Forward pass
             outputs = model(images)
             loss = criterion(outputs, labels)
             
-            # Calculate metrics
             batch_loss = loss.item()
             running_loss += batch_loss * images.size(0)
             
@@ -171,10 +146,16 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs):
 
 def main(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    save_dir = os.path.join(args.save_dir, f'classifier_{timestamp}')
+    model_type = "streetclip" if args.use_streetclip else "vit"
+    save_dir = os.path.join(args.save_dir, f'{model_type}_{timestamp}')
     os.makedirs(save_dir, exist_ok=True)
     
     device = get_device()
+    
+    print(f"{'='*70}")
+    print(f"OpenGuessr City Classifier Training")
+    print(f"Model: {'StreetCLIP' if args.use_streetclip else 'ViT-Base'}")
+    print(f"{'='*70}\n")
     
     # Load dataset
     train_loader, val_loader, _ = load_classification_dataset(
@@ -182,17 +163,25 @@ def main(args):
         train_split=args.train_split,
         val_split=args.val_split,
         batch_size=args.batch_size,
-        seed=args.seed
+        seed=args.seed,
+        use_clip=args.use_streetclip
     )
     
     # Initialize model
-    print(f"Loading model: {args.model_name}")
-    model = ViTCityClassifier(
-        model_name=args.model_name,
-        pretrained=True,
-        freeze_backbone=True,
-        dropout=args.dropout
-    )
+    if args.use_streetclip:
+        model = StreetCLIPCityClassifier(
+            model_name="geolocal/StreetCLIP",
+            freeze_backbone=True,
+            dropout=args.dropout
+        )
+    else:
+        model = ViTCityClassifier(
+            model_name='vit_base_patch16_224',
+            pretrained=True,
+            freeze_backbone=True,
+            dropout=args.dropout
+        )
+    
     model = model.to(device)
     
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -200,7 +189,7 @@ def main(args):
     print(f"Trainable parameters: {trainable_params:,} / {total_params:,}\n")
     
     # Loss, optimizer, scheduler
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -219,28 +208,25 @@ def main(args):
     
     best_val_acc = 0.0
     best_val_distance = float('inf')
-    
     history = {
         'train_loss': [], 'val_loss': [],
         'train_top1_acc': [], 'val_top1_acc': [],
         'train_top5_acc': [], 'val_top5_acc': [],
         'train_distance': [], 'val_distance': []
     }
-
+    
     epoch_pbar = tqdm(range(1, args.epochs + 1), desc='Training Progress',
                       position=0, dynamic_ncols=True)
-
+    
     for epoch in epoch_pbar:
-        # Train
         train_loss, train_top1, train_top5, train_dist = train_epoch(
             model, train_loader, criterion, optimizer, device, epoch, args.epochs
         )
         
-        # Validate
         val_loss, val_top1, val_top5, val_dist = validate(
             model, val_loader, criterion, device, epoch, args.epochs
         )
-
+        
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
         history['train_top1_acc'].append(train_top1)
@@ -250,11 +236,9 @@ def main(args):
         history['train_distance'].append(train_dist)
         history['val_distance'].append(val_dist)
         
-        # Update LR
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
         
-        # Update progress bar
         epoch_pbar.set_postfix({
             'train_acc': f'{train_top1*100:.1f}%',
             'val_acc': f'{val_top1*100:.1f}%',
@@ -262,19 +246,16 @@ def main(args):
             'lr': f'{current_lr:.2e}'
         })
         
-        # Print summary
         print(f"\nEpoch {epoch}/{args.epochs}:")
         print(f"  Train: Loss={train_loss:.4f}, Top-1={train_top1*100:.1f}%, Top-5={train_top5*100:.1f}%, Dist={train_dist:.0f}km")
         print(f"  Val:   Loss={val_loss:.4f}, Top-1={val_top1*100:.1f}%, Top-5={val_top5*100:.1f}%, Dist={val_dist:.0f}km")
         print(f"  LR: {current_lr:.2e}\n")
         
-        # Check if this is the best model (based on top-1 accuracy)
         is_best = val_top1 > best_val_acc
         if is_best:
             best_val_acc = val_top1
             best_val_distance = val_dist
         
-        # Save checkpoint every N epochs or if best
         if epoch % args.save_freq == 0 or is_best:
             save_checkpoint(
                 model=model,
@@ -293,7 +274,6 @@ def main(args):
                 is_best=is_best
             )
     
-    # Save final metrics
     with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
         json.dump(history, f, indent=4)
     
@@ -307,40 +287,27 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train ViT for OpenGuessr')
+    parser = argparse.ArgumentParser(description='Train city classifier')
     
     # Data
-    parser.add_argument('--data-dir', type=str, default='./data',
-                       help='Path to data directory')
-    parser.add_argument('--save-dir', type=str, default='./checkpoints',
-                       help='Directory to save checkpoints')
-    parser.add_argument('--train-split', type=float, default=0.8,
-                       help='Train split ratio')
-    parser.add_argument('--val-split', type=float, default=0.1,
-                       help='Val split ratio')
+    parser.add_argument('--data-dir', type=str, default='./data')
+    parser.add_argument('--save-dir', type=str, default='./checkpoints')
+    parser.add_argument('--train-split', type=float, default=0.8)
+    parser.add_argument('--val-split', type=float, default=0.1)
     
     # Model
-    parser.add_argument('--model-name', type=str, default='vit_base_patch16_224',
-                       help='ViT model name from timm')
+    parser.add_argument('--use-streetclip', action='store_true',
+                       help='Use StreetCLIP instead of ViT-Base')
     
     # Training
-    parser.add_argument('--epochs', type=int, default=5,
-                       help='Number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=32,
-                       help='Batch size')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                       help='Learning rate')
-    parser.add_argument('--min-lr', type=float, default=1e-6,
-                       help='Minimum learning rate for cosine annealing')
-    parser.add_argument('--weight-decay', type=float, default=0.01,
-                       help='Weight decay')
-    parser.add_argument('--save-freq', type=int, default=5,
-                       help='Save checkpoint every N epochs')
-    parser.add_argument('--dropout', type=float, default=0.3)
-    
-    # System
-    parser.add_argument('--seed', type=int, default=42,
-                       help='Random seed')
+    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--min-lr', type=float, default=1e-6)
+    parser.add_argument('--weight-decay', type=float, default=0.01)
+    parser.add_argument('--save-freq', type=int, default=5)
+    parser.add_argument('--dropout', type=float, default=0.4)
+    parser.add_argument('--seed', type=int, default=42)
     
     args = parser.parse_args()
     main(args)
