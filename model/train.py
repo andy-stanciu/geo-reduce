@@ -1,3 +1,6 @@
+"""
+train.py - Train StreetCLIP city classifier with visualization
+"""
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -6,9 +9,10 @@ import os
 import json
 from datetime import datetime
 import math
+import matplotlib.pyplot as plt
 
 from dataloader import load_classification_dataset
-from vit import ViTCityClassifier
+from vit import StreetCLIPCityClassifier, ViTCityClassifier
 from device import get_device
 from checkpoint import save_checkpoint
 from constants import *
@@ -16,36 +20,17 @@ from city_mapping import *
 
 
 def haversine_distance(lat1, long1, lat2, long2):
-    """
-    Calculate great-circle distance between two points on Earth (in km)
-    using Haversine formula
-    """
-    # Convert to radians
+    """Calculate great-circle distance between two points on Earth (in km)"""
     lat1, long1, lat2, long2 = map(math.radians, [lat1, long1, lat2, long2])
-    
     dlat = lat2 - lat1
     dlong = long2 - long1
-    
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlong/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    
     return EARTH_RADIUS_KM * c
 
 
 def calculate_metrics(outputs, labels, metadata):
-    """
-    Calculate accuracy and geographic distance metrics
-    
-    Args:
-        outputs: Model logits [batch, 50]
-        labels: True city labels [batch]
-        meta Dict with true lat/lon
-    
-    Returns:
-        top1_acc: Top-1 accuracy
-        top5_acc: Top-5 accuracy
-        avg_distance: Average distance error in km
-    """
+    """Calculate accuracy and geographic distance metrics"""
     batch_size = outputs.size(0)
     
     # Top-1 accuracy
@@ -72,7 +57,6 @@ def calculate_metrics(outputs, labels, metadata):
             total_distance += distance
     
     avg_distance = total_distance / batch_size
-    
     return top1_acc, top5_acc, avg_distance
 
 
@@ -80,7 +64,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
     """Train for one epoch"""
     model.train()
     running_loss = 0.0
-    running_distance = 0.0
     running_top1_acc = 0.0
     running_top5_acc = 0.0
     running_distance = 0.0
@@ -92,16 +75,12 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
         images = images.to(device)
         labels = labels.to(device)
         
-        # Forward pass
         optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, labels)
-        
-        # Backward pass
         loss.backward()
         optimizer.step()
         
-        # Calculate metrics
         batch_loss = loss.item()
         running_loss += batch_loss * images.size(0)
         
@@ -111,7 +90,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
             running_top5_acc += top5_acc * images.size(0)
             running_distance += avg_dist * images.size(0)
         
-        # Update progress bar
         pbar.set_postfix({
             'loss': f'{batch_loss:.4f}',
             'acc': f'{top1_acc*100:.1f}%',
@@ -142,11 +120,9 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs):
             images = images.to(device)
             labels = labels.to(device)
             
-            # Forward pass
             outputs = model(images)
             loss = criterion(outputs, labels)
             
-            # Calculate metrics
             batch_loss = loss.item()
             running_loss += batch_loss * images.size(0)
             
@@ -169,12 +145,86 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs):
     return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
 
+def plot_training_curves(history, save_dir):
+    """
+    Plot training and validation curves for loss, accuracy, and distance.
+    
+    Args:
+        history: Dictionary with training metrics
+        save_dir: Directory to save plots
+    """
+    epochs = range(1, len(history['train_loss']) + 1)
+    
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    
+    # Plot 1: Loss
+    ax1 = axes[0, 0]
+    ax1.plot(epochs, history['train_loss'], 'b-o', label='Train Loss', linewidth=2, markersize=4)
+    ax1.plot(epochs, history['val_loss'], 'r-s', label='Val Loss', linewidth=2, markersize=4)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Cross-Entropy Loss', fontsize=12)
+    ax1.set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Top-1 Accuracy
+    ax2 = axes[0, 1]
+    ax2.plot(epochs, [acc*100 for acc in history['train_top1_acc']], 
+             'b-o', label='Train Top-1 Acc', linewidth=2, markersize=4)
+    ax2.plot(epochs, [acc*100 for acc in history['val_top1_acc']], 
+             'r-s', label='Val Top-1 Acc', linewidth=2, markersize=4)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Top-1 Accuracy (%)', fontsize=12)
+    ax2.set_title('Top-1 Accuracy', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    
+    # Plot 3: Top-5 Accuracy
+    ax3 = axes[1, 0]
+    ax3.plot(epochs, [acc*100 for acc in history['train_top5_acc']], 
+             'b-o', label='Train Top-5 Acc', linewidth=2, markersize=4)
+    ax3.plot(epochs, [acc*100 for acc in history['val_top5_acc']], 
+             'r-s', label='Val Top-5 Acc', linewidth=2, markersize=4)
+    ax3.set_xlabel('Epoch', fontsize=12)
+    ax3.set_ylabel('Top-5 Accuracy (%)', fontsize=12)
+    ax3.set_title('Top-5 Accuracy', fontsize=14, fontweight='bold')
+    ax3.legend(fontsize=11)
+    ax3.grid(True, alpha=0.3)
+    
+    # Plot 4: Distance Error
+    ax4 = axes[1, 1]
+    ax4.plot(epochs, history['train_distance'], 
+             'b-o', label='Train Dist Error', linewidth=2, markersize=4)
+    ax4.plot(epochs, history['val_distance'], 
+             'r-s', label='Val Dist Error', linewidth=2, markersize=4)
+    ax4.set_xlabel('Epoch', fontsize=12)
+    ax4.set_ylabel('Distance Error (km)', fontsize=12)
+    ax4.set_title('Geographic Distance Error', fontsize=14, fontweight='bold')
+    ax4.legend(fontsize=11)
+    ax4.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    plot_path = os.path.join(save_dir, 'training_curves.png')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✓ Training curves saved to {plot_path}")
+
+
 def main(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    save_dir = os.path.join(args.save_dir, f'classifier_{timestamp}')
+    model_type = "streetclip" if args.use_streetclip else "vit"
+    save_dir = os.path.join(args.save_dir, f'{model_type}_{timestamp}')
     os.makedirs(save_dir, exist_ok=True)
     
     device = get_device()
+    
+    print(f"{'='*70}")
+    print(f"OpenGuessr City Classifier Training")
+    print(f"Model: {'StreetCLIP' if args.use_streetclip else 'ViT-Base'}")
+    print(f"{'='*70}\n")
     
     # Load dataset
     train_loader, val_loader, _ = load_classification_dataset(
@@ -182,17 +232,25 @@ def main(args):
         train_split=args.train_split,
         val_split=args.val_split,
         batch_size=args.batch_size,
-        seed=args.seed
+        seed=args.seed,
+        use_clip=args.use_streetclip
     )
     
     # Initialize model
-    print(f"Loading model: {args.model_name}")
-    model = ViTCityClassifier(
-        model_name=args.model_name,
-        pretrained=True,
-        freeze_backbone=True,
-        dropout=args.dropout
-    )
+    if args.use_streetclip:
+        model = StreetCLIPCityClassifier(
+            model_name="geolocal/StreetCLIP",
+            freeze_backbone=True,
+            dropout=args.dropout
+        )
+    else:
+        model = ViTCityClassifier(
+            model_name='vit_base_patch16_224',
+            pretrained=True,
+            freeze_backbone=True,
+            dropout=args.dropout
+        )
+    
     model = model.to(device)
     
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -200,7 +258,7 @@ def main(args):
     print(f"Trainable parameters: {trainable_params:,} / {total_params:,}\n")
     
     # Loss, optimizer, scheduler
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -220,16 +278,21 @@ def main(args):
     best_val_acc = 0.0
     best_val_distance = float('inf')
     
+    # History tracking
     history = {
-        'train_loss': [], 'val_loss': [],
-        'train_top1_acc': [], 'val_top1_acc': [],
-        'train_top5_acc': [], 'val_top5_acc': [],
-        'train_distance': [], 'val_distance': []
+        'train_loss': [], 
+        'val_loss': [],
+        'train_top1_acc': [], 
+        'val_top1_acc': [],
+        'train_top5_acc': [], 
+        'val_top5_acc': [],
+        'train_distance': [], 
+        'val_distance': []
     }
-
+    
     epoch_pbar = tqdm(range(1, args.epochs + 1), desc='Training Progress',
                       position=0, dynamic_ncols=True)
-
+    
     for epoch in epoch_pbar:
         # Train
         train_loss, train_top1, train_top5, train_dist = train_epoch(
@@ -240,7 +303,8 @@ def main(args):
         val_loss, val_top1, val_top5, val_dist = validate(
             model, val_loader, criterion, device, epoch, args.epochs
         )
-
+        
+        # Store metrics
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
         history['train_top1_acc'].append(train_top1)
@@ -268,13 +332,13 @@ def main(args):
         print(f"  Val:   Loss={val_loss:.4f}, Top-1={val_top1*100:.1f}%, Top-5={val_top5*100:.1f}%, Dist={val_dist:.0f}km")
         print(f"  LR: {current_lr:.2e}\n")
         
-        # Check if this is the best model (based on top-1 accuracy)
+        # Check if best model
         is_best = val_top1 > best_val_acc
         if is_best:
             best_val_acc = val_top1
             best_val_distance = val_dist
         
-        # Save checkpoint every N epochs or if best
+        # Save checkpoint
         if epoch % args.save_freq == 0 or is_best:
             save_checkpoint(
                 model=model,
@@ -292,55 +356,64 @@ def main(args):
                 save_dir=save_dir,
                 is_best=is_best
             )
+        
+        # Save history after each epoch (so you don't lose progress)
+        with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
+            json.dump(history, f, indent=4)
     
-    # Save final metrics
-    with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
-        json.dump(history, f, indent=4)
+    # Generate final plots
+    print("\nGenerating training curve plots...")
+    plot_training_curves(history, save_dir)
+    
+    # Save final summary
+    summary = {
+        'best_val_top1_acc': best_val_acc,
+        'best_val_distance': best_val_distance,
+        'final_train_loss': history['train_loss'][-1],
+        'final_val_loss': history['val_loss'][-1],
+        'final_train_top1_acc': history['train_top1_acc'][-1],
+        'final_val_top1_acc': history['val_top1_acc'][-1],
+        'total_epochs': args.epochs,
+        'model_type': model_type,
+        'trainable_params': trainable_params,
+        'total_params': total_params
+    }
+    
+    with open(os.path.join(save_dir, 'summary.json'), 'w') as f:
+        json.dump(summary, f, indent=4)
     
     print(f"\n{'='*70}")
     print(f"Training Complete!")
     print(f"{'='*70}")
     print(f"Best Val Top-1 Accuracy: {best_val_acc*100:.1f}%")
     print(f"Best Val Distance Error: {best_val_distance:.0f} km")
+    print(f"Final Train/Val Gap: {(history['train_top1_acc'][-1] - history['val_top1_acc'][-1])*100:.1f}%")
     print(f"Checkpoints saved to: {save_dir}")
     print(f"{'='*70}\n")
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train ViT for OpenGuessr')
+    parser = argparse.ArgumentParser(description='Train city classifier')
     
     # Data
-    parser.add_argument('--data-dir', type=str, default='./data',
-                       help='Path to data directory')
-    parser.add_argument('--save-dir', type=str, default='./checkpoints',
-                       help='Directory to save checkpoints')
-    parser.add_argument('--train-split', type=float, default=0.8,
-                       help='Train split ratio')
-    parser.add_argument('--val-split', type=float, default=0.1,
-                       help='Val split ratio')
+    parser.add_argument('--data-dir', type=str, default='./data')
+    parser.add_argument('--save-dir', type=str, default='./checkpoints')
+    parser.add_argument('--train-split', type=float, default=0.8)
+    parser.add_argument('--val-split', type=float, default=0.1)
     
     # Model
-    parser.add_argument('--model-name', type=str, default='vit_base_patch16_224',
-                       help='ViT model name from timm')
+    parser.add_argument('--use-streetclip', action='store_true',
+                       help='Use StreetCLIP instead of ViT-Base')
     
     # Training
-    parser.add_argument('--epochs', type=int, default=5,
-                       help='Number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=32,
-                       help='Batch size')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                       help='Learning rate')
-    parser.add_argument('--min-lr', type=float, default=1e-6,
-                       help='Minimum learning rate for cosine annealing')
-    parser.add_argument('--weight-decay', type=float, default=0.01,
-                       help='Weight decay')
-    parser.add_argument('--save-freq', type=int, default=5,
-                       help='Save checkpoint every N epochs')
-    parser.add_argument('--dropout', type=float, default=0.3)
-    
-    # System
-    parser.add_argument('--seed', type=int, default=42,
-                       help='Random seed')
+    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--min-lr', type=float, default=1e-6)
+    parser.add_argument('--weight-decay', type=float, default=0.01)
+    parser.add_argument('--save-freq', type=int, default=5)
+    parser.add_argument('--dropout', type=float, default=0.4)
+    parser.add_argument('--seed', type=int, default=42)
     
     args = parser.parse_args()
     main(args)
