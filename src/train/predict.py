@@ -11,6 +11,7 @@ from constants import *
 from model.clip import StreetCLIPCityClassifier
 from device import get_device
 from data.dataloader import load_classification_dataset
+from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 from data.city_mapping import IDX_TO_CITY, IDX_TO_COORDS, CITY_NAMES
 import math
 
@@ -36,10 +37,13 @@ def load_classifier_for_inference(checkpoint_path):
     model = StreetCLIPCityClassifier(
         model_name="geolocal/StreetCLIP",
         freeze_backbone=True,
-        dropout=0.4
+        dropout=DROPOUT
     )
     
-    model.load_state_dict(checkpoint['model_state_dict'])
+    state_dict = checkpoint['model_state_dict']
+    consume_prefix_in_state_dict_if_present(state_dict, 'module.')
+
+    model.load_state_dict(state_dict)
     model = model.to(device)
     model.eval()
     
