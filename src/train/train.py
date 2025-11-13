@@ -371,6 +371,7 @@ def main(rank, world_size, args):
     # Training loop
     if rank == 0:
         print(f"Starting training for {args.epochs} epochs...\n")
+        print(f"Current time: {datetime.now()}")
     
     best_val_acc = 0.0
     best_val_distance = float('inf')
@@ -444,23 +445,22 @@ def main(rank, world_size, args):
                 best_val_distance = val_dist
             
             # Save checkpoint
-            if epoch % args.save_freq == 0 or is_best:
-                save_checkpoint(
-                    model=model,
-                    optimizer=optimizer,
-                    scheduler=scheduler,
-                    epoch=epoch,
-                    train_loss=train_loss,
-                    val_loss=val_loss,
-                    train_top1_acc=train_top1,
-                    val_top1_acc=val_top1,
-                    train_top5_acc=train_top5,
-                    val_top5_acc=val_top5,
-                    train_distance=train_dist,
-                    val_distance=val_dist,
-                    save_dir=save_dir,
-                    is_best=is_best
-                )
+            save_checkpoint(
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                epoch=epoch,
+                train_loss=train_loss,
+                val_loss=val_loss,
+                train_top1_acc=train_top1,
+                val_top1_acc=val_top1,
+                train_top5_acc=train_top5,
+                val_top5_acc=val_top5,
+                train_distance=train_dist,
+                val_distance=val_dist,
+                save_dir=save_dir,
+                is_best=is_best
+            )
         
             # Save history after each epoch
             with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
@@ -493,6 +493,7 @@ def main(rank, world_size, args):
         
         print(f"\n{'='*70}")
         print(f"Training Complete!")
+        print(f"Current time: {datetime.now()}")
         print(f"{'='*70}")
         print(f"Best Val Top-1 Accuracy: {best_val_acc*100:.1f}%")
         print(f"Best Val Distance Error: {best_val_distance:.0f} km")

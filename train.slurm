@@ -15,4 +15,6 @@
 #SBATCH --error=andys22-slurm-%j.err              # STDERR log file (%j = JobID)
 
 # --- Example Command to run ---
+source .venv/bin/activate
+export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
 srun --gpus-per-node=8 python src/train/train.py
