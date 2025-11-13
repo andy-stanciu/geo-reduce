@@ -37,7 +37,7 @@ def load_classifier_for_inference(checkpoint_path):
     model = StreetCLIPCityClassifier(
         model_name="geolocal/StreetCLIP",
         freeze_backbone=True,
-        dropout=DROPOUT
+        dropout=DROPOUT,
     )
     
     state_dict = checkpoint['model_state_dict']

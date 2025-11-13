@@ -531,6 +531,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=ADAMW_WEIGHT_DECAY)
     parser.add_argument('--dropout', type=float, default=DROPOUT)
     parser.add_argument('--seed', type=int, default=SEED)
+    parser.add_argument('--unfreeze-last-n-blocks', type=int, default=UNFREEZE_LAST_N_BLOCKS)
 
     # DDP
     parser.add_argument('--bucket-size-mb',type=int, default=BUCKET_SIZE_MB)
