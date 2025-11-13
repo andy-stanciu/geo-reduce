@@ -60,14 +60,14 @@ class OpenGuessrClassificationDataset(Dataset):
                     'filename': filename
                 })
         
-        print(f"Loaded {len(self.samples)} images from {len(set(s['city_label'] for s in self.samples))} cities")
+        # print(f"Loaded {len(self.samples)} images from {len(set(s['city_label'] for s in self.samples))} cities")
     
     def _print_class_distribution(self):
         city_counts = Counter([s['city_label'] for s in self.samples])
-        print(f"\nClass distribution:")
-        print(f"  Min images per city: {min(city_counts.values())}")
-        print(f"  Max images per city: {max(city_counts.values())}")
-        print(f"  Avg images per city: {sum(city_counts.values()) / len(city_counts):.1f}")
+        # print(f"\nClass distribution:")
+        # print(f"  Min images per city: {min(city_counts.values())}")
+        # print(f"  Max images per city: {max(city_counts.values())}")
+        # print(f"  Avg images per city: {sum(city_counts.values()) / len(city_counts):.1f}")
     
     def __len__(self):
         return len(self.samples)
@@ -156,9 +156,9 @@ def load_classification_dataset(data_dir, train_split=TRAIN_SPLIT, val_split=VAL
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    print(f"\nDataset splits:")
-    print(f"  Train: {len(train_dataset)} images")
-    print(f"  Val:   {len(val_dataset)} images")
-    print(f"  Test:  {len(test_dataset)} images\n")
+    # print(f"\nDataset splits:")
+    # print(f"  Train: {len(train_dataset)} images")
+    # print(f"  Val:   {len(val_dataset)} images")
+    # print(f"  Test:  {len(test_dataset)} images\n")
     
     return train_loader, val_loader, test_loader

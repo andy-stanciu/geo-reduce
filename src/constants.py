@@ -16,10 +16,12 @@ LR = 1e-3
 MIN_LR = 1e-6
 ADAMW_WEIGHT_DECAY = 0.01
 
-# lat/long range for continental USA
-LAT_MIN, LAT_MAX = 24.5, 49.4
-LONG_MIN, LONG_MAX = -125.0, -66.9
-EARTH_RADIUS_KM = 6371
+### DDP ###
+MASTER_ADDR = 'localhost'
+MASTER_PORT = '20501'
+BACKEND = 'nccl'
+BUCKET_SIZE_MB = 100
+WORLD_SIZE = 8
 
 ### CLIP ###
 
@@ -34,3 +36,10 @@ CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
 
 DATA_DIR = './data'
 CHECKPOINT_DIR = './checkpoints'
+
+### MISC ###
+
+# lat/long range for continental USA
+LAT_MIN, LAT_MAX = 24.5, 49.4
+LONG_MIN, LONG_MAX = -125.0, -66.9
+EARTH_RADIUS_KM = 6371

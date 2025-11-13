@@ -17,12 +17,12 @@ class StreetCLIPCityClassifier(nn.Module):
                  freeze_backbone=True, dropout=DROPOUT):
         super().__init__()
         
-        print(f"Loading StreetCLIP from: {model_name}")
+        # print(f"Loading StreetCLIP from: {model_name}")
         
         # Load StreetCLIP vision encoder
         try:
             self.vision_model = CLIPVisionModel.from_pretrained(model_name)
-            print("✓ Successfully loaded StreetCLIP pretrained weights")
+            # print("✓ Successfully loaded StreetCLIP pretrained weights")
         except Exception as e:
             print(f"⚠️ Could not load pretrained weights: {e}")
             print("Loading with random initialization...")
@@ -33,11 +33,11 @@ class StreetCLIPCityClassifier(nn.Module):
         if freeze_backbone:
             for param in self.vision_model.parameters():
                 param.requires_grad = False
-            print("✓ Froze StreetCLIP backbone")
+            # print("✓ Froze StreetCLIP backbone")
         
         # Get embedding dimension (768 for CLIP-Base, 1024 for CLIP-Large)
         self.embed_dim = self.vision_model.config.hidden_size
-        print(f"Embedding dimension: {self.embed_dim}")
+        # print(f"Embedding dimension: {self.embed_dim}")
         
         # Classification head - simpler than before due to better features
         self.classifier = nn.Sequential(

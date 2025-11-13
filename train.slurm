@@ -6,7 +6,7 @@
 #SBATCH --nodes=1                         # One node (tomago/tempura)
 #SBATCH --ntasks-per-node=1               # Number of CPU cores (vary it as needed)
 #SBATCH --mem=20G                         # Memory per node
-#SBATCH --gpus=1                          # Number of GPUs (for HW1, let it be 1)
+#SBATCH --gpus=8                          # Number of GPUs (for HW1, let it be 1)
 #SBATCH --time=02:00:00                   # Max runtime = 2 hours (cluster limit)
 
 #SBATCH --chdir=/homes/iws/andys22/599o/geo-reduce # Working directory
@@ -15,4 +15,4 @@
 #SBATCH --error=andys22-slurm-%j.err              # STDERR log file (%j = JobID)
 
 # --- Example Command to run ---
-srun python model/train.py --use-streetclip --batch-size 16 --epochs 16
+srun --gpus-per-node=8 python src/train/train.py

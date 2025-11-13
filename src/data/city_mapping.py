@@ -30,7 +30,7 @@ def load_city_mapping(json_path='data_cleaning/us_cities.json'):
         idx_to_coords[idx] = (loc['lat'], loc['lng'])
         city_names.append(city_name)
     
-    print(f"Loaded {len(city_names)} cities")
+    # print(f"Loaded {len(city_names)} cities")
     return city_to_idx, idx_to_city, idx_to_coords, city_names
 
 
