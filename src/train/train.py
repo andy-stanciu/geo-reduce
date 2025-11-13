@@ -42,6 +42,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
     running_top1_acc = 0.0
     running_top5_acc = 0.0
     running_distance = 0.0
+    num_samples = 0
     
     # Only show progress bar on rank 0
     if rank == 0:
@@ -53,6 +54,9 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
     for images, labels, metadata in pbar:
         images = images.to(device)
         labels = labels.to(device)
+
+        batch_size = images.size(0)
+        num_samples += batch_size
         
         optimizer.zero_grad()
         outputs = model(images)
@@ -62,7 +66,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
         optimizer.step()
         
         batch_loss = loss.item()
-        running_loss += batch_loss * images.size(0)
+        running_loss += batch_loss * batch_size
         
         with torch.no_grad():
             top1_acc, top5_acc, avg_dist = calculate_metrics(outputs, labels, metadata)
@@ -78,17 +82,18 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
             })
 
     # Aggregate metrics across all ranks (minimal overhead)
-    dataset_size = torch.tensor(len(dataloader.dataset), dtype=torch.float32, device=device)
+    num_samples_tensor = torch.tensor(num_samples, dtype=torch.float32, device=device)
     metrics = torch.tensor([running_loss, running_top1_acc, running_top5_acc, running_distance], 
                           dtype=torch.float32, device=device)
     
     dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
-    dist.all_reduce(dataset_size, op=dist.ReduceOp.SUM)
+    dist.all_reduce(num_samples_tensor, op=dist.ReduceOp.SUM)
     
-    epoch_loss = metrics[0].item() / dataset_size.item()
-    epoch_top1_acc = metrics[1].item() / dataset_size.item()
-    epoch_top5_acc = metrics[2].item() / dataset_size.item()
-    epoch_distance = metrics[3].item() / dataset_size.item()
+    total_samples = num_samples_tensor.item()
+    epoch_loss = metrics[0].item() / total_samples
+    epoch_top1_acc = metrics[1].item() / total_samples
+    epoch_top5_acc = metrics[2].item() / total_samples
+    epoch_distance = metrics[3].item() / total_samples
     
     return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
@@ -101,6 +106,7 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs, rank):
     running_top1_acc = 0.0
     running_top5_acc = 0.0
     running_distance = 0.0
+    num_samples = 0
     
     # Only show progress bar on rank 0
     if rank == 0:
@@ -113,12 +119,15 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs, rank):
         for images, labels, metadata in pbar:
             images = images.to(device)
             labels = labels.to(device)
+
+            batch_size = images.size(0)
+            num_samples += batch_size
             
             outputs = model(images)
             loss = criterion(outputs, labels)
             
             batch_loss = loss.item()
-            running_loss += batch_loss * images.size(0)
+            running_loss += batch_loss * batch_size
             
             top1_acc, top5_acc, avg_dist = calculate_metrics(outputs, labels, metadata)
             running_top1_acc += top1_acc * images.size(0)
@@ -133,17 +142,18 @@ def validate(model, dataloader, criterion, device, epoch, total_epochs, rank):
                 })
     
     # Once again, aggregate metrics across all ranks
-    dataset_size = torch.tensor(len(dataloader.dataset), dtype=torch.float32, device=device)
+    num_samples_tensor = torch.tensor(num_samples, dtype=torch.float32, device=device)
     metrics = torch.tensor([running_loss, running_top1_acc, running_top5_acc, running_distance], 
                           dtype=torch.float32, device=device)
     
     dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
-    dist.all_reduce(dataset_size, op=dist.ReduceOp.SUM)
+    dist.all_reduce(num_samples_tensor, op=dist.ReduceOp.SUM)
     
-    epoch_loss = metrics[0].item() / dataset_size.item()
-    epoch_top1_acc = metrics[1].item() / dataset_size.item()
-    epoch_top5_acc = metrics[2].item() / dataset_size.item()
-    epoch_distance = metrics[3].item() / dataset_size.item()
+    total_samples = num_samples_tensor.item()
+    epoch_loss = metrics[0].item() / total_samples
+    epoch_top1_acc = metrics[1].item() / total_samples
+    epoch_top5_acc = metrics[2].item() / total_samples
+    epoch_distance = metrics[3].item() / total_samples
     
     return epoch_loss, epoch_top1_acc, epoch_top5_acc, epoch_distance
 
