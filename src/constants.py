@@ -6,7 +6,7 @@ VAL_SPLIT = 0.1
 SEED = 42
 
 # model config
-TRAIN_EPOCHS = 20
+TRAIN_EPOCHS = 30
 UNFREEZE_LAST_N_BLOCKS = 3
 
 # hyperparams
@@ -17,7 +17,7 @@ LR = 5e-5
 MIN_LR = 1e-7
 ADAMW_WEIGHT_DECAY = 0.01
 CE_LABEL_SMOOTHING = 0.1
-MIXUP_ALPHA = 0.3
+MIXUP_ALPHA = 0.15
 
 ### DDP ###
 MASTER_ADDR = 'localhost'
