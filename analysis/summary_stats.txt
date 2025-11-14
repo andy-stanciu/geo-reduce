@@ -1,0 +1,40 @@
+======================================================================
+PREDICTION ANALYSIS SUMMARY
+======================================================================
+
+Overall Metrics:
+  Total predictions: 841
+  Correct: 655 (77.88%)
+  Incorrect: 186 (22.12%)
+  Average confidence: 0.6852
+  Average distance error: 270.6 km
+  Median distance error: 6.4 km
+
+Top 10 Best Performing Cities:
+  Milwaukee            - 100.0% (23/23) Avg Dist: 5.9km
+  Louisville           -  95.7% (22/23) Avg Dist: 20.8km
+  Fresno               -  95.2% (20/21) Avg Dist: 20.9km
+  Philadelphia         -  94.7% (18/19) Avg Dist: 15.0km
+  Miami                -  94.1% (16/17) Avg Dist: 22.7km
+  New York             -  94.1% (16/17) Avg Dist: 15.6km
+  Colorado Springs     -  94.1% (16/17) Avg Dist: 95.6km
+  Charlotte            -  93.8% (15/16) Avg Dist: 35.2km
+  Raleigh              -  90.9% (20/22) Avg Dist: 78.9km
+  Tampa                -  90.9% (20/22) Avg Dist: 27.8km
+
+Bottom 10 Worst Performing Cities:
+  Fort Worth           -  64.3% (9/14) Most confused with: Dallas
+  El Paso              -  63.6% (7/11) Most confused with: Mesa
+  Atlanta              -  63.2% (12/19) Most confused with: Memphis
+  Washington           -  60.0% (6/10) Most confused with: Charlotte
+  Columbus             -  52.0% (13/25) Most confused with: Detroit
+  Kansas City          -  50.0% (7/14) Most confused with: Dallas
+  Dallas               -  46.2% (6/13) Most confused with: Austin
+  San Jose             -  38.9% (7/18) Most confused with: Los Angeles
+  Boston               -  25.0% (1/4) Most confused with: Mesa
+  Virginia Beach       -   0.0% (0/2) Most confused with: Mesa
+
+Confidence Analysis:
+  Average confidence (correct): 0.7666
+  Average confidence (incorrect): 0.3986
+  Confidence gap: 0.3680

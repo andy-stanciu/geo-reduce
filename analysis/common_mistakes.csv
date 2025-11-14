@@ -1,0 +1,21 @@
+true_city,predicted_city,count
+Columbus,Detroit,7
+Oakland,San Jose,4
+Seattle,Portland,4
+Columbus,Indianapolis,3
+Indianapolis,Columbus,3
+El Paso,Mesa,3
+Tucson,Mesa,3
+Las Vegas,Mesa,3
+Omaha,Mesa,3
+Atlanta,Memphis,2
+Long Beach,Los Angeles,2
+Memphis,Atlanta,2
+Sacramento,Fresno,2
+Oklahoma City,Atlanta,2
+San Francisco,Seattle,2
+San Jose,Oakland,2
+Tulsa,Fort Worth,2
+Tampa,Jacksonville,2
+San Jose,Los Angeles,2
+San Jose,Mesa,2

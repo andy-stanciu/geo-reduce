@@ -7,6 +7,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
+import numpy as np
 import argparse
 import os
 import json
@@ -35,7 +36,8 @@ def cleanup():
 
 ### TRAIN LOOP ###
 
-def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_epochs, rank):
+def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_epochs, rank, 
+                alpha=MIXUP_ALPHA):
     """Train for one epoch"""
     model.train()
     running_loss = 0.0
@@ -57,10 +59,22 @@ def train_epoch(model, dataloader, criterion, optimizer, device, epoch, total_ep
 
         batch_size = images.size(0)
         num_samples += batch_size
-        
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+
+        # Apply mixup
+        if alpha > 0:
+            lam = np.random.beta(alpha, alpha)
+            index = torch.randperm(batch_size).to(device)
+            mixed_images = lam * images + (1 - lam) * images[index]
+            labels_a, labels_b = labels, labels[index]
+
+            optimizer.zero_grad()
+            outputs = model(mixed_images)
+            loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b)
+        else:
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+
         loss.backward() # hooks trigger async all-reduce per bucket
         model.finish_gradient_synchronization() # wait for all gradients to be computed
         optimizer.step()
@@ -363,8 +377,8 @@ def main(rank, world_size, args):
     
     # Loss, optimizer, scheduler
     # optional: use label smoothing to reduce overfitting
-    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=CE_LABEL_SMOOTHING)
+    # criterion = nn.CrossEntropyLoss()
     
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
